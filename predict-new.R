@@ -13,7 +13,7 @@
 #' @export
 predict_new <- function(brmsfit, newdata, level = .95) {
   stopifnot("brmsfit" %in% class(brmsfit))
-  yhat    <- fitted(brmsfit, newdata)[, 1]
+  yhat    <- fitted(brmsfit, newdata, summary = F)[, 1]
   yhatCrI <- predictive_interval(brmsfit, newdata, prob = level)
   colnames(yhatCrI) <- c("lwr","upr")
   return(data.frame(yhat = yhat, yhatCrI))
@@ -69,12 +69,8 @@ pred_eval <- function(preds, true) {
 
   # all metrics together
   metrics <- data.frame(
-    PICP = PICP,
-    RMSE = RMSE,
-    MAE = MAE,
-    MPE = MPE,
-    SDPE = SDPE,
-    R2 = R2
+    metric = c("PICP", "RMSE", "MAE", "MPE", "SDPE", "R2"),
+    value  = c( PICP,   RMSE,   MAE,   MPE,   SDPE,   R2)
   )
   return(metrics)
 }
