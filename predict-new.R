@@ -69,12 +69,8 @@ pred_eval <- function(preds, true) {
 
   # all metrics together
   metrics <- data.frame(
-    PICP = PICP,
-    RMSE = RMSE,
-    MAE = MAE,
-    MPE = MPE,
-    SDPE = SDPE,
-    R2 = R2
+    metric = c("PICP", "RMSE", "MAE", "MPE", "SDPE", "R2"),
+    value  = c( PICP,   RMSE,   MAE,   MPE,   SDPE,   R2)
   )
   return(metrics)
 }
