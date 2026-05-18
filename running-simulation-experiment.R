@@ -51,13 +51,20 @@ simexp_results3 <- simexp_results2 %>%
   )
 
 # basic figure with results
-simexp_results3 %>%
+simexp_results4 <- simexp_results3 %>%
   select(sample_size, ratio_varmex_varx, tails, contains("metrics")) %>%
   pivot_longer(contains("metrics"), 
                names_to = "models", values_to = "metrics") %>%
   mutate(models = stringr::str_split_i(models, "_", 1)) %>%
   unnest(cols = contains("metrics"))
 
-
+ggplot(simexp_results4,
+       aes(y = value, 
+           x = factor(ratio_varmex_varx), 
+           shape = factor(sample_size), 
+           color = models)) +
+  facet_wrap(~ metric, scales = "free_y") +
+  geom_jitter(height = 0, width = .1)
+  
 
 
