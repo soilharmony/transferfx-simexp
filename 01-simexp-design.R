@@ -1,8 +1,10 @@
 # design of the simulation experiment
 
+library(tidyverse)
+
 
 # sim_data function:
-source("simulate-data.r")
+source(here::here("simulate-data.r"))
 
 
 # parameter choices of the simulation experiment
@@ -41,6 +43,6 @@ simexp_data <- simexp_data %>%
   expand_grid(models = c("linreg","eivreg1","eivreg2"))
 
 save(simexp_data,
-     file = "simulation-data/simexp-data.rda")
+     file = here::here("simulation-data/simexp-data.rda"))
 
 
