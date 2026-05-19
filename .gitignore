@@ -48,5 +48,8 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+# folder to save simulated data and results (don't track with git)
+simulation-data/*
+
 # personal folders not for github
 archive/*
