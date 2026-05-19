@@ -3,7 +3,7 @@
 #' single_rep
 #' 
 #' @description
-#' A short description...
+#' Function to perform the model-training and model-validation steps in a single simulation replicate.
 #' 
 #' @param data_train Training dataset
 #' @param data_test Independent test dataset for validation
