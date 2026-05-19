@@ -42,7 +42,9 @@ pred_eval <- function(preds, true) {
 
   # root mean-square error
   RMSE <- dat %>%
-    summarise(RMSE = sqrt(mean((yhat - y_true)^2))) %>%
+    summarise(
+      RMSE = sqrt(mean( (yhat - y_true)^2) )
+    ) %>%
     pull(RMSE)
 
   # mean absolute error
