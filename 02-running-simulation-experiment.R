@@ -26,8 +26,8 @@ simexp_results <- simexp_data %>%
     )
   )
 save(simexp_results,
-     file = here::here("simulation-data/simexp_results.rda"))
-load(here::here("simulation-data/simexp_results.rda"))
+     file = here::here("simulation-data/simexp-results.rda"))
+load(here::here("simulation-data/simexp-results.rda"))
 
 
 # basic figure with results
