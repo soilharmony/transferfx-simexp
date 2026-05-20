@@ -3,7 +3,6 @@
 library(tidyverse)
 library(rstan)
 library(brms)
-library(furrr)
 
 # dataset
 load(here::here("simulation-data/simexp-data.rda"))
@@ -13,20 +12,16 @@ source("fit-model.R")
 source("predict-new.R")
 source("wrapper-complete-workflow.R")
 
-# set up parallel workers
-plan(multisession, workers = 6)
-
 # complete workflow
 simexp_results <- simexp_data %>%
   mutate(
     sdmex = 1 * ratio_sdmex_sigmax,
-    model_metrics = future_pmap(
+    model_metrics = pmap(
       .f = single_rep,
       .l = list(data_train = data_train,
                 data_test  = data_test, 
                 model      = models,
                 sdmex      = sdmex),
-      .options = furrr_options(seed = T),
       .progress = T
     )
   )
