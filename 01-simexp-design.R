@@ -22,6 +22,8 @@ simexp_design <- expand_grid(
   rep = seq(1, replicates)
 )
 
+# seed for reproducibility
+set.seed(123)
 simexp_data <- simexp_design %>%
   mutate(
     data_train = pmap(
