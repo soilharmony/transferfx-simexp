@@ -22,11 +22,11 @@ model {
 }
 
 generated quantities {
-  vector[N] log_lik;
-  vector[N] y_rep;
-  for (n in 1:N) {
-    y_rep[n]   = normal_rng(b_Intercept + b_x_obs * x_obs[n], sigma);
-    log_lik[n] = normal_lpdf(y_obs[n] |
-                              b_Intercept + b_x_obs * x_obs[n], sigma);
-  }
+  // not used for now (needed for WAIC)
+  // vector[N] y_rep = to_vector(
+  //   normal_rng(b_Intercept + b_x_obs * x_obs, sigma)
+  // );
+  // vector[N] log_lik = normal_lpdf(
+  //   y_obs | b_Intercept + b_x_obs * x_obs, sigma
+  // );
 }
