@@ -11,14 +11,14 @@ sampler <- function(model, data) {
 
 # detour by first fitting in STAN and then injection in brms 
 # (for easier post-processing)
-brm_skeleton <- brm(
+brm_skeleton <- brms::brm(
   y_obs ~ 1 + x_obs,
   data = data.frame(x_obs = 0, y_obs = 0), 
   empty = TRUE
 )
 wrap_stan_brms <- function(data, model, skeleton = brm_skeleton) {
   skeleton$fit <- sampler(model, data)
-  rename_pars(skeleton)
+  brms::rename_pars(skeleton)
 }
 
 

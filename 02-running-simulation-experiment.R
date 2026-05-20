@@ -3,6 +3,7 @@
 library(tidyverse)
 library(rstan)
 library(brms)
+library(mirai)
 
 # dataset
 load(here::here("simulation-data/simexp-data.rda"))
@@ -13,18 +14,35 @@ source("predict-new.R")
 source("wrapper-complete-workflow.R")
 
 # complete workflow
+daemons(6)
 simexp_results <- simexp_data %>%
   mutate(
     sdmex = 1 * ratio_sdmex_sigmax,
     model_metrics = pmap(
-      .f = single_rep,
       .l = list(data_train = data_train,
-                data_test  = data_test, 
+                data_test  = data_test,
                 model      = models,
                 sdmex      = sdmex),
-      .progress = T
+      .f = in_parallel(
+        \(data_train, data_test, model, sdmex) 
+        single_rep(data_train, data_test, model, sdmex),
+        # explicitly pass everything the workers need
+        single_rep     = single_rep,
+        fit_linreg     = fit_linreg,
+        fit_eiv1       = fit_eiv1,
+        fit_eiv2       = fit_eiv2,
+        predict_new    = predict_new,
+        pred_eval      = pred_eval,
+        wrap_stan_brms = wrap_stan_brms,
+        brm_skeleton   = brm_skeleton,
+        sampler        = sampler,
+        linreg_empty   = linreg_empty,
+        eivreg1_empty  = eivreg1_empty,
+        eivreg2_empty  = eivreg2_empty
+      )
     )
   )
+daemons(0)
 save(simexp_results,
      file = here::here("simulation-data/simexp-results.rda"))
 load(here::here("simulation-data/simexp-results.rda"))

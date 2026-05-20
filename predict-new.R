@@ -13,9 +13,9 @@
 #' @export
 predict_new <- function(brmsfit, newdat, level = .95) {
   stopifnot("brmsfit" %in% class(brmsfit))
-  yhat    <- posterior_epred(brmsfit, newdata = newdat)
+  yhat    <- brms::posterior_epred(brmsfit, newdata = newdat)
   yhat    <- apply(yhat, 2, mean)
-  yhatCrI <- predictive_interval(brmsfit, newdata = newdat, prob = level)
+  yhatCrI <- brms::predictive_interval(brmsfit, newdata = newdat, prob = level)
   colnames(yhatCrI) <- c("lwr","upr")
   return(data.frame(yhat = yhat, yhatCrI))
 }
@@ -32,6 +32,8 @@ predict_new <- function(brmsfit, newdat, level = .95) {
 #'
 #' @export
 pred_eval <- function(preds, true) {
+  library(dplyr)
+  
   # combine datasets for evaluation
   dat <- cbind(preds, true)
 
