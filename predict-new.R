@@ -11,10 +11,11 @@
 #' @param level Level of uncertainty for the prediction interval (default .95).
 #'
 #' @export
-predict_new <- function(brmsfit, newdata, level = .95) {
+predict_new <- function(brmsfit, newdat, level = .95) {
   stopifnot("brmsfit" %in% class(brmsfit))
-  yhat    <- fitted(brmsfit, newdata, summary = F)[, 1]
-  yhatCrI <- predictive_interval(brmsfit, newdata, prob = level)
+  yhat    <- posterior_epred(brmsfit, newdata = newdat)
+  yhat    <- apply(yhat, 2, mean)
+  yhatCrI <- predictive_interval(brmsfit, newdata = newdat, prob = level)
   colnames(yhatCrI) <- c("lwr","upr")
   return(data.frame(yhat = yhat, yhatCrI))
 }
@@ -41,7 +42,9 @@ pred_eval <- function(preds, true) {
 
   # root mean-square error
   RMSE <- dat %>%
-    summarise(RMSE = sqrt(mean((yhat - y_true)^2))) %>%
+    summarise(
+      RMSE = sqrt(mean( (yhat - y_true)^2) )
+    ) %>%
     pull(RMSE)
 
   # mean absolute error
