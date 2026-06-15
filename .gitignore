@@ -53,3 +53,6 @@ simulation-data/*
 
 # personal folders not for github
 archive/*
+
+# targets package: don' track the _targets/ folder
+# separate .gitignore file
