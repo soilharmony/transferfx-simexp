@@ -57,6 +57,8 @@ sim_data <- function(
   data_val <- data.frame(
     uniqueid = 1:Nval, # observation ID, useful for joining
     y_true   = y_true_val,
+    y_obs    = y_obs_val,
+    x_true   = x_true_val,
     x_obs    = x_obs_val
   )
   df_stan$validation_data <- data_val
