@@ -13,10 +13,6 @@ library(tidyverse) |> suppressPackageStartupMessages()
 library(here) |> suppressPackageStartupMessages()
 ```
 
-## Description of the experiment
-
-## Description of the models
-
 ## Results
 
 ### Calibration metrics by scenario and model
@@ -29,11 +25,11 @@ regdilution_summary <- rep(regdilution_summary$beta_obs, each = 3)
 predeval_summary$regdilution <- regdilution_summary
 ```
 
-The three models were evaluated in 18 different scenarios. A scenario is a combination of the following parameters:
+The three models were evaluated in 32 different scenarios. A scenario is a combination of the following parameters:
 
-- Ratio between the SD of the measurement error and the SD of the latent $X$: $\sigma_u / \sigma_x$: 0.05, 0.1 or 0.2.
+- Ratio between the SD of the measurement error and the SD of the latent $X$: $\sigma_u / \sigma_x$: 0.01, 0.05, 0.1 or 0.2.
 - Distribution of the measurement error: normal or student-t with 3 dof.
-- Sample size of the dataset to train the transfer function: 100, 200 or 500.
+- Sample size of the dataset to train the transfer function: 100, 200, 500 or 1000.
 
 Each scenario was evaluated $S$ = `r nrep` times.
 
