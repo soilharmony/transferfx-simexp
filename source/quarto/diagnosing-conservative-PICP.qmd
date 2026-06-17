@@ -42,7 +42,7 @@ fit_predict_flinreg <- function(tarobj) {
     interval = "prediction"
   ) %>% as.data.frame()
   PICP <- mean(
-    between(tarobj$validation_data$y_true, preds$lwr, preds$upr)
+    between(tarobj$validation_data$y_obs, preds$lwr, preds$upr)
   )
   return(PICP)
 }

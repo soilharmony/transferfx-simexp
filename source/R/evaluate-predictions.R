@@ -22,12 +22,12 @@ val_metrics <- function(df, modelname) {
   df %>%
     summarise(
       .by = .rep,
-      MAE  = mean(abs(yhat - y_true)),
-      RMSE = sqrt(mean((yhat - y_true)^2)),
-      MPE  = mean(yhat - y_true),
-      R2   = 1 - sum((y_true - yhat)^2) / sum((y_true - mean(y_true))^2),
-      SDPE = sd(yhat - y_true),
-      PICP = mean(between(y_true, yhat_ll, yhat_ul))
+      MAE  = mean(abs(yhat - y_obs)),
+      RMSE = sqrt(mean((yhat - y_obs)^2)),
+      MPE  = mean(yhat - y_obs),
+      R2   = 1 - sum((y_obs - yhat)^2) / sum((y_obs - mean(y_obs))^2),
+      SDPE = sd(yhat - y_obs),
+      PICP = mean(between(y_obs, yhat_ll, yhat_ul))
     ) %>%
     mutate(model = modelname, .before = .rep)
 }

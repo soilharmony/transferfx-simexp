@@ -54,7 +54,7 @@ predx_linreg <- function(draws, newdata, level = .95) {
     )
   
   newdata %>% 
-    select(uniqueid, y_true) %>%
+    select(uniqueid, y_true, y_obs) %>%
     left_join(yhat, by = "uniqueid")
 }
 
@@ -114,6 +114,6 @@ predx_eivreg <- function(draws, newdata, level = .95) {
     )
   
   newdata %>% 
-    select(uniqueid, y_true) %>%
+    select(uniqueid, y_true, y_obs) %>%
     left_join(yhat, by = "uniqueid")
 }
