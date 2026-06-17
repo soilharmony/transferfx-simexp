@@ -1,0 +1,136 @@
+---
+title: "Evaluating posterior sensitivity"
+format: 
+  html:
+    embed-resources: true
+---
+
+## Sensitivity of the posterior to prior and likelihood
+
+In this quarto we evaluate how sensitive the TF-models are to the specified prior. The priors for the error-terms and the slope are informative in order to break the non-identifiability issue. We use the `priorsense` package workflow.
+
+:::{.callout-note}
+From the $\texttt{priorsense}$ package:
+*"priorsense is compatible with models fit with either rstan and cmdstanr. To use priorsense with a Stan model, the log prior and log likelihood evaluations should be added to the model code."*
+https://n-kall.github.io/priorsense/articles/priorsense_with_stan.html
+:::
+
+The models fitted in the `stantargets` pipeline did not calculate the log-prior and log-likelihood (computational speed), so we need to do that again. Let's just try on a single simulated dataset from one of the scenarios.
+
+```{r}
+library(tidyverse) |> suppressPackageStartupMessages()
+library(here) |> suppressPackageStartupMessages()
+library(posterior) |> suppressPackageStartupMessages()
+library(cmdstanr) |> suppressPackageStartupMessages()
+library(priorsense)
+library(targets)
+
+# extract the dataset from a single scenario
+# scenario: N = 200, tau = 0.1, tail = Normal
+scx <- "mcmc_data_Nsample200_Tau0.05_Tailnormal_"
+tar_load(contains(scx), store = here("_targets/"))
+data_list <- get(ls()[grepl(scx, ls())][1])[[1]]
+data_list$.dataset_id <- NULL
+data_list$.seed <- NULL
+```
+
+Fit the models with `cmdstanr`:
+
+```{r}
+# compile model
+mod3 <- cmdstan_model(
+  here("source","stan","eivreg_unknown_sdmex_withGQ.stan")
+)
+# sample from model
+fit3 <- mod3$sample(
+  data = data_list,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  refresh = 0, 
+  show_messages = F, 
+  show_exceptions = F
+)
+```
+
+Perform the sensitivity analysis on the parameters (ignore transformed parameters and latent variables in the plots):
+
+```{r}
+powerscale_sensitivity(
+  fit3,
+  variable = c("b_Intercept","b_x_obs","mu_x","sigma_x","sigma","sigma_mex",
+               "inv_var_x","inv_var_mex","tilde_v","sd_xobs","sd_yobs"),
+  component = c("prior", "likelihood"),
+  sensitivity_threshold = 0.05
+)
+powerscale_plot_dens(
+  fit3,
+  variable = c("b_Intercept","b_x_obs","mu_x","sigma_x","sigma","sigma_mex"),
+  component = c("prior", "likelihood")
+)
+powerscale_plot_ecdf(
+  fit3,
+  variable = c("b_Intercept","b_x_obs","mu_x","sigma_x","sigma","sigma_mex"),
+  component = c("prior", "likelihood")
+)
+```
+
+The above results indicate **potential prior-data-conflicts** for several model parameters. This is not surprising, knowing about the non-identifiability issue (negatively correlated parameters).
+
+Next we look at sensitivity of the predictions, not sensitivity of the parameters. This requires to focus our predictions at specific points. Let's take the 6-point summary of the observed range of $x$.
+
+```{r}
+# this requires a work-around to get the predictions in the draws object
+# code below is ugly but works, need to fix it later
+
+draws_fit3 <- as_draws_df(fit3)
+
+predx <- function(draws, x) {
+  tilde_mu <- draws$tilde_v * (draws$inv_var_x * draws$mu_x + 
+                                 draws$inv_var_mex * x)
+  draws$b_Intercept + draws$b_x_obs * tilde_mu
+}
+
+preds <- with(draws_fit3, {
+  data.frame(
+    pred_minX    = predx(draws_fit3, min(data_list$x_obs)),
+    pred_Q1X     = predx(draws_fit3, quantile(data_list$x_obs, .25)),
+    pred_medianX = predx(draws_fit3, median(data_list$x_obs)),
+    pred_meanX   = predx(draws_fit3, mean(data_list$x_obs)),
+    pred_Q3X     = predx(draws_fit3, quantile(data_list$x_obs, .75)),
+    pred_maxX    = predx(draws_fit3, max(data_list$x_obs))
+  )
+})
+preds$.chain <- draws_fit3$.chain
+preds$.iteration <- draws_fit3$.iteration
+preds$.draw <- draws_fit3$.draw
+
+draws_fit3 <- bind_draws(draws_fit3, as_draws_df(preds))
+
+# then we can use priorsense again
+powerscale_sensitivity(
+  draws_fit3,
+  variable = c("pred_minX","pred_Q1X","pred_medianX",
+               "pred_meanX","pred_Q3X","pred_maxX")
+)
+powerscale_plot_dens(
+  draws_fit3,
+  variable = c("pred_minX","pred_Q1X","pred_medianX",
+               "pred_meanX","pred_Q3X","pred_maxX")
+)
+powerscale_plot_ecdf(
+  draws_fit3,
+  variable = c("pred_minX","pred_Q1X","pred_medianX",
+               "pred_meanX","pred_Q3X","pred_maxX")
+)
+```
+
+This is a lot better, no more potential conflicts found. For TF, the predictions are more important than the model parameters. As indicated in the paper 
+
+:::{.callout-warning}
+But beware:
+*Like most diagnostics, when power-scaling sensitivity analysis does not indicate sensitivity, this only means that it could not detect sensitivity to power-scaling, not that the model is certainly well-behaved or insensitive to other types of perturbations.*
+
+Kallioinen N., Paananen T., Bürkner P.-C. & Vehtari A. (2023). Detecting and diagnosing prior and likelihood sensitivity with power-scaling. Statistics and Computing 34 (1): 57. https://doi.org/10.1007/s11222-023-10366-5.
+:::
+
