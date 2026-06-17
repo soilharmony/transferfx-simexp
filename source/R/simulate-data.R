@@ -9,7 +9,8 @@ sim_data <- function(
     alpha = 0,
     beta = 1,
     mu_x = 0,
-    sigma_x = 1
+    sigma_x = 1,
+    sigma_y_struct = .1 # <-- NEW: Add structural error parameter
 ) {
   
   # latent predictor
@@ -23,7 +24,8 @@ sim_data <- function(
   )
   
   # latent outcome
-  y_true <- alpha + beta * x_true
+  # NEW: Added structural equation error
+  y_true <- alpha + beta * x_true + rnorm(N, 0, sigma_y_struct)
   # observed outcome
   sdmey <- ratio_sdmey_sdmex * sdmex
   y_obs <- switch(
@@ -43,7 +45,8 @@ sim_data <- function(
   # additionally create an independent validation dataset (N = 1000)
   Nval <- 1000
   x_true_val <- rnorm(Nval, mu_x, sigma_x)
-  y_true_val <- alpha + beta * x_true_val
+  # NEW: Added structural equation error
+  y_true_val <- alpha + beta * x_true_val + rnorm(Nval, 0, sigma_y_struct)
   x_obs_val <- switch(
     tails,
     normal = x_true_val + rnorm(Nval, 0, sdmex),
