@@ -44,8 +44,8 @@ list(
       iter_warmup   = 1000,
       iter_sampling = 1000,
       refresh       = 0,
-      batches       = 1,
-      reps          = 1,
+      batches       = 5,
+      reps          = 2,
       stdout = R.utils::nullfile(),
       stderr = R.utils::nullfile()
     ),
@@ -75,6 +75,7 @@ list(
       predeval,
       eval_preds(preds_linreg, preds_eivreg1, preds_eivreg2)
     ),
+    
     # MCMC-diagnostics
     tar_target(mcmcdx_linreg, 
                mcmc_dx(mcmc_linreg), 
@@ -106,6 +107,12 @@ list(
     mcmcdx_summary,
     mapped[["mcmcdx"]],
     command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
+  ),
+  
+  # render a quarto report of the experiment
+  tar_quarto(
+    report_simexp2,
+    path = here("source/quarto/analysis-simexp2.qmd")
   )
   
 )

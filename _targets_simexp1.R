@@ -15,6 +15,9 @@ tar_source(
   files = here("source", "R")
 )
 
+labs <- colnames(simexp_design1)[grepl("_label", colnames(simexp_design1))]
+
+
 ### ---------------- ###
 ### Targets-pipeline ###
 ### ---------------- ###
@@ -23,9 +26,7 @@ list(
   mapped <- tar_map(
     unlist = FALSE,
     values = simexp_design1,
-    names  = all_of(c("sample_size_label", 
-                      "ratio_sdmex_sigmax_label", 
-                      "tails_label")),
+    names  = all_of(labs),
     
     # for each batch/rep: draw simulated data and fit Bayesian models on it
     # the function sim_data returns both a training and a validation dataset
@@ -44,8 +45,8 @@ list(
       iter_warmup   = 1000,
       iter_sampling = 1000,
       refresh       = 0,
-      batches       = 1,
-      reps          = 1,
+      batches       = 5,
+      reps          = 2,
       stdout = R.utils::nullfile(),
       stderr = R.utils::nullfile()
     ),
@@ -75,6 +76,7 @@ list(
       predeval,
       eval_preds(preds_linreg, preds_eivreg1, preds_eivreg2)
     ),
+    
     # MCMC-diagnostics
     tar_target(mcmcdx_linreg, 
                mcmc_dx(mcmc_linreg), 
@@ -84,34 +86,28 @@ list(
                pattern = map(mcmc_eivreg_known_sdmex)),
     tar_target(mcmcdx_eivreg2, 
                mcmc_dx(mcmc_eivreg_unknown_sdmex), 
-               pattern = map(mcmc_eivreg_unknown_sdmex))
+               pattern = map(mcmc_eivreg_unknown_sdmex)),
+    tar_target(
+      mcmcdx,
+      combine_mcmcdx(mcmcdx_linreg, mcmcdx_eivreg1, mcmcdx_eivreg2)
+    )
   ),
   
   # combine results across scenario's
   tar_combine(
     predeval_summary,
     mapped[["predeval"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_predeval_summary()
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
   ),
   tar_combine(
     regdilution_summary,
     mapped[["regdilution"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_regdilution()
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
   ),
   tar_combine(
-    mcmcdx_linreg_all,
-    mapped[["mcmcdx_linreg"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_mcmcdx()
-  ),
-  tar_combine(
-    mcmcdx_eivreg1_all,
-    mapped[["mcmcdx_eivreg1"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_mcmcdx()
-  ),
-  tar_combine(
-    mcmcdx_eivreg2_all,
-    mapped[["mcmcdx_eivreg2"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_mcmcdx()
+    mcmcdx_summary,
+    mapped[["mcmcdx"]],
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
   )
   
 )

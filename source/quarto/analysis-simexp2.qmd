@@ -1,0 +1,189 @@
+---
+title: "Simulation experiment (2)"
+format: 
+  html:
+    embed-resources: true
+toc: true
+---
+
+```{r, echo = F}
+library(tidyverse) |> suppressPackageStartupMessages()
+library(targets) |> suppressPackageStartupMessages()
+library(tarchetypes) |> suppressPackageStartupMessages()
+library(here) |> suppressPackageStartupMessages()
+
+# set the _target store library of the project (for interactive use)
+prj_store <- here("store_simexp2")
+tar_load(predeval_summary, store = prj_store)
+nrep <- length(unique(predeval_summary$.rep)) 
+tar_load(regdilution_summary, store = prj_store)
+predeval_summary <- predeval_summary %>%
+  arrange(sample_size, taux, tauxy, corrme, tails, 
+          mux, sigmax, alpha, beta, sigmay_struct, .rep) 
+regdilution_summary <- regdilution_summary %>%
+  arrange(sample_size, taux, tauxy, corrme, tails, 
+          mux, sigmax, alpha, beta, sigmay_struct)
+regdilution_vctr <- rep(regdilution_summary$beta_obs, each = 3)
+predeval_summary$regdilution <- regdilution_vctr
+```
+
+<br>
+
+## Design of the experiment
+
+We simulate data according to the following method ($X$ = non-reference method, $Y$ = reference method). We first simulate a latent (true) value for the non-reference method using a normal distribution: $X_{\mathrm{true}} \sim \mathcal{N}(\mu_x, \sigma_x^2)$ and then use this value to simulate a value for the latent reference method, assuming a linear relation between both methods and some structural noise that is not due to measurement error: $Y_{\mathrm{true}} \sim \mathcal{N}(\alpha + \beta X_{\mathrm{true}}, \sigma_y^2)$. We then add measurement noise to both methods (resulting from both field and lab measurement processes). In the notation below we assume bivariate normal measurement error, but it is defined analogously for bivariate Student-$t$ distributed measurement error:
+$$
+\begin{pmatrix} X_{\mathrm{obs}}\\ Y_{\mathrm{obs}} \end{pmatrix} 
+\sim \mathcal{N}
+\left(
+\begin{pmatrix} X_{\mathrm{true}}\\ Y_{\mathrm{true}} \end{pmatrix},
+\begin{pmatrix} \sigma_u^2\ & \rho\sigma_u\sigma_v \\ \rho\sigma_u\sigma_v & \sigma_v^2 \end{pmatrix}
+\right)
+$$
+The measurement noise magnitudes are expressed as ratio's of the SD of the latent $X$:
+$$
+\begin{aligned}
+\sigma_u &= \tau_x\sigma_x \\
+\sigma_v &= \tau_{xy}\sigma_u
+\end{aligned}
+$$
+In this experiment we focus on the effect of the structural noise in the reference method that is not explained by the non-reference method ($\sigma_y$) and the correlation between the measurement error of both methods ($\rho$). Other parameter values are kept fixed:
+
+| Parameter              | Values                                    |
+|------------------------|-------------------------------------------|
+|$N$                     |`r unique(predeval_summary$sample_size)`   |
+|$\mu_x$                 |`r unique(predeval_summary$mux)`           |
+|$\sigma_x$              |`r unique(predeval_summary$sigmax)`        |
+|$\alpha$                |`r unique(predeval_summary$alpha)`         |
+|$\beta$                 |`r unique(predeval_summary$beta)`          |
+|$\sigma_y$              |`r unique(predeval_summary$sigmay_struct)` |
+|Tails measurement error |Normal distribution                        |
+|$\tau_x$                |`r unique(predeval_summary$taux)`          |
+|$\tau_{xy}$             |`r unique(predeval_summary$tauxy)`         |
+|$\rho$                  |`r unique(predeval_summary$corrme)`        |
+
+: Table: Parameter values for the scenario's of experiment 2.
+
+<br>
+
+## Description of the models
+
+Same as in experiment 1: 
+
+- linear regression
+- EIV-regression with known SD of measurement error
+- EIV-regression with prior on SD of measurement error
+
+## Evaluation of the models
+
+Same as in experiment 1: a validation dataset of $N$ = 1000 observations are sampled from the same data-generating mechanism as the training dataset and the fitted models are used to make predictions. The predictions are compared with the simulated validation data.
+
+<br>
+
+## Results
+
+@fig-calibration1 displays the results in function of the correlation of the measurement errors and @fig-calibration2 displays the results in function of the structural error in the reference method. @fig-calibration3 displays the results in function of the realized regression dilution.
+
+```{r, echo = FALSE}
+#| label: fig-calibration1
+#| fig-cap: "Bla bla ...."
+
+predeval_summary %>%
+  pivot_longer(
+    c(PICP, MAE, MPE, RMSE, R2, SDPE), 
+    names_to = "metric", values_to = "value"
+  ) %>%
+  mutate(
+    metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP")),
+    model = factor(model, c("linreg","eivreg1","eivreg2"),
+                   c("Linear regression","EIV model\n(known SD)",
+                     "EIV model\n(prior on SD)"))
+  ) %>%
+  ggplot(aes(factor(corrme), value, colour = model)) +
+  facet_wrap(~ metric, scales = "free_y") +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge(.1, 0)) +
+  labs(
+    title = "calibration metrics", y = "",
+    x = expression(rho),
+    color = "Models"
+  ) +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"),
+        legend.position = "bottom")
+```
+
+```{r, echo = FALSE}
+#| label: fig-calibration2
+#| fig-cap: "Bla bla ...."
+
+predeval_summary %>%
+  pivot_longer(
+    c(PICP, MAE, MPE, RMSE, R2, SDPE), 
+    names_to = "metric", values_to = "value"
+  ) %>%
+  mutate(
+    metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP")),
+    model = factor(model, c("linreg","eivreg1","eivreg2"),
+                   c("Linear regression","EIV model\n(known SD)",
+                     "EIV model\n(prior on SD)"))
+  ) %>%
+  ggplot(aes(factor(sigmay_struct), value, colour = model)) +
+  facet_wrap(~ metric, scales = "free_y") +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge(.1, 0)) +
+  labs(
+    title = "calibration metrics", y = "",
+    x = expression(sigma[y]),
+    color = "Models"
+  ) +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"),
+        legend.position = "bottom")
+```
+
+```{r, echo = FALSE, message=FALSE}
+#| label: fig-calibration3
+#| fig-cap: "Bla bla ..."
+
+predeval_summary %>%
+  pivot_longer(
+    c(PICP, MAE, MPE, RMSE, R2, SDPE), 
+    names_to = "metric", values_to = "value"
+  ) %>%
+  mutate(
+    metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP")),
+    model = factor(model, c("linreg","eivreg1","eivreg2"),
+                   c("Linear regression","EIV model\n(known SD)",
+                     "EIV model\n(prior on SD)"))
+  ) %>%
+  ggplot(aes(regdilution, value, colour = model)) +
+  facet_wrap(~ metric, scales = "free") +
+  geom_point() + geom_smooth(method = "loess", se = F) +
+  labs(y = "", x = "regression dilution", color = "Models") +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"),
+        legend.position = "bottom")
+```
+
+The following figure display the $\hat{R}$ statistic of the MCMC for each of the model parameters. The red dashed lines are at 1.00 and 1.01. The boxplots are aggregated across scenario's because the values were similar in each of them and all well below 1.01.
+
+```{r mcmc-dx, echo = F, warning = F}
+tar_load(mcmcdx_summary,  store = prj_store)
+
+mcmcdx_summary %>%
+  select(-c(sample_size, taux, tauxy, corrme, tails, 
+          mux, sigmax, alpha, beta, sigmay_struct)) %>%
+  pivot_longer(-c(.rep, model), names_to = "parameter", values_to = "Rhat") %>%
+  filter(!is.na(Rhat)) %>%
+  mutate(
+    model = factor(model, c("linreg","eivreg1","eivreg2"),
+                   c("Linear regression","EIV model\n(known SD)",
+                     "EIV model\n(prior on SD)"))
+  ) %>%
+  ggplot(aes(Rhat, parameter)) +
+  facet_wrap(~ model) +
+  geom_boxplot() +
+  geom_vline(xintercept = c(1.00, 1.01), lty = 2, color = "red") +
+  theme_minimal()
+```
