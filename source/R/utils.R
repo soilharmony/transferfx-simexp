@@ -1,24 +1,5 @@
 # utility functions
 
-#' @title tidy_predeval_summary
-#' @description
-#' Extract scenario parameters from the scenario column
-#' @param df ....
-tidy_predeval_summary <- function(df) {
-  df %>%
-    separate_wider_delim(
-      scenario, "_", names = c("x","sample_size","tau","tails")
-    ) %>%
-    mutate(
-      sample_size = as.numeric(gsub("[^0-9.]", "", sample_size)),
-      tau = as.numeric(gsub("[^0-9.]", "", tau)),
-      tails = substr(tails, 5, nchar(tails))
-    ) %>%
-    select(sample_size, tau, tails,
-           model, .rep, 
-           MAE, RMSE, MPE, R2, SDPE, PICP)
-}
-
 
 #' @title mcmc_dx
 #' @description 
@@ -39,21 +20,20 @@ mcmc_dx <- function(df) {
     rownames_to_column(var = ".rep")
 }
 
-#' @title tidy_mcmcdx
-#' @description
-#' Extract scenario parameters from the scenario column
-#' @param df ....
-tidy_mcmcdx <- function(df) {
-  df %>%
-    separate_wider_delim(
-      scenario, "_", names = c("x","model","sample_size","tau","tails")
-    ) %>%
-    mutate(
-      sample_size = as.numeric(gsub("[^0-9.]", "", sample_size)),
-      tau = as.numeric(gsub("[^0-9.]", "", tau)),
-      tails = substr(tails, 5, nchar(tails))
-    ) %>%
-    select(-c(x, model))
+
+#' @title combine_mcmcdx
+#' @param linreg ....
+#' @param eivreg1 ....
+#' @param eivreg2 ....
+combine_mcmcdx <- function(linreg, eivreg1, eivreg2) {
+  data.table::rbindlist(
+    list(
+      linreg %>% mutate(model = "linreg"),
+      eivreg1 %>% mutate(model = "eivreg1"),
+      eivreg2 %>% mutate(model = "eivreg2")
+    ),
+    use.names = TRUE, fill = TRUE
+  )
 }
 
 
@@ -69,20 +49,23 @@ reg_dilution <- function(data) {
 }
 
 
-#' @title tidy_regdilution
+#' @title tidy_scenario
 #' @description
 #' Extract scenario parameters from the scenario column
 #' @param df ....
-tidy_regdilution <- function(df) {
+tidy_scenario <- function(df) {
   df %>%
     separate_wider_delim(
-      scenario, "_", names = c("x","sample_size","tau","tails")
+      scenario, "_", 
+      names = c("x","sample_size","taux","tauxy","corrme",
+                "tails","mux","sigmax","alpha","beta","sigmay_struct")
     ) %>%
     mutate(
-      sample_size = as.numeric(gsub("[^0-9.]", "", sample_size)),
-      tau = as.numeric(gsub("[^0-9.]", "", tau)),
+      across(c(sample_size, taux, tauxy, corrme, 
+               mux, sigmax, alpha, beta, sigmay_struct), 
+             ~ as.numeric(gsub("[^0-9.]", "", .x))),
       tails = substr(tails, 5, nchar(tails))
     ) %>%
-    select(sample_size, tau, tails, beta_obs)
+    select(-x)
 }
 

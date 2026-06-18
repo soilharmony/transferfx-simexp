@@ -1,4 +1,4 @@
-# _targets.R
+# _targets_simexp2.R
 library(targets)
 library(tarchetypes)
 library(stantargets)
@@ -9,11 +9,14 @@ library(quarto)
 library(crew)
 
 tar_option_set(
-  controller = crew_controller_local(workers = 2)
+  controller = crew_controller_local(workers = 5)
 )
 tar_source(
   files = here("source", "R")
 )
+
+labs <- colnames(simexp_design2)[grepl("_label", colnames(simexp_design2))]
+
 
 ### ---------------- ###
 ### Targets-pipeline ###
@@ -22,11 +25,9 @@ list(
   # part of the pipeline to map over scenario's:
   mapped <- tar_map(
     unlist = FALSE,
-    values = simexp_design,
-    names  = all_of(c("sample_size_label", 
-                      "ratio_sdmex_sigmax_label", 
-                      "tails_label")),
-    
+    values = simexp_design2,
+    names  = all_of(labs),
+
     # for each batch/rep: draw simulated data and fit Bayesian models on it
     # the function sim_data returns both a training and a validation dataset
     tar_stan_mcmc_rep_draws(
@@ -35,18 +36,16 @@ list(
                      here("source/stan/eivreg_known_sdmex.stan"),
                      here("source/stan/eivreg_unknown_sdmex.stan")),
       data = sim_data(
-        N                  = sample_size,
-        ratio_sdmex_sigmax = ratio_sdmex_sigmax,
-        ratio_sdmey_sdmex  = 1,
-        tails              = tails
+        corr_sdmey_sdmex = corr_sdmey_sdmex,
+        sigma_y_struct = sigma_y_struct
       ),
       seed          = 123,
       chains        = 4, parallel_chains = 4,
       iter_warmup   = 1000,
       iter_sampling = 1000,
       refresh       = 0,
-      batches       = 2,
-      reps          = 5,
+      batches       = 1,
+      reps          = 1,
       stdout = R.utils::nullfile(),
       stderr = R.utils::nullfile()
     ),
@@ -85,39 +84,28 @@ list(
                pattern = map(mcmc_eivreg_known_sdmex)),
     tar_target(mcmcdx_eivreg2, 
                mcmc_dx(mcmc_eivreg_unknown_sdmex), 
-               pattern = map(mcmc_eivreg_unknown_sdmex))
+               pattern = map(mcmc_eivreg_unknown_sdmex)),
+    tar_target(
+      mcmcdx,
+      combine_mcmcdx(mcmcdx_linreg, mcmcdx_eivreg1, mcmcdx_eivreg2)
+    )
   ),
   
   # combine results across scenario's
   tar_combine(
     predeval_summary,
     mapped[["predeval"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>%
-      tidy_predeval_summary()
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
   ),
   tar_combine(
     regdilution_summary,
     mapped[["regdilution"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>%
-      tidy_regdilution()
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
   ),
   tar_combine(
-    mcmcdx_linreg_all,
-    mapped[["mcmcdx_linreg"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>%
-      tidy_mcmcdx()
-  ),
-  tar_combine(
-    mcmcdx_eivreg1_all,
-    mapped[["mcmcdx_eivreg1"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>%
-      tidy_mcmcdx()
-  ),
-  tar_combine(
-    mcmcdx_eivreg2_all,
-    mapped[["mcmcdx_eivreg2"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>%
-      tidy_mcmcdx()
+    mcmcdx_summary,
+    mapped[["mcmcdx"]],
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
   )
   
 )

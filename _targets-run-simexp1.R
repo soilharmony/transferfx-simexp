@@ -1,6 +1,8 @@
-# _targets-run.R
+# _targets-run-simexp1.R
 
 rstudioapi::restartSession()
+
+Sys.setenv(TAR_PROJECT = "project_simexp1")
 
 library(targets)
 library(tarchetypes)

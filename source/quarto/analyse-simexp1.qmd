@@ -1,5 +1,5 @@
 ---
-title: "Simulation experiment"
+title: "Simulation experiment (1)"
 format: 
   html:
     embed-resources: true
@@ -11,6 +11,9 @@ library(targets)
 library(tarchetypes)
 library(tidyverse) |> suppressPackageStartupMessages()
 library(here) |> suppressPackageStartupMessages()
+
+Sys.setenv(TAR_PROJECT = "project_simexp1")
+prj_store <- here("store_simexp1")
 ```
 
 ## Results
@@ -18,17 +21,13 @@ library(here) |> suppressPackageStartupMessages()
 ### Calibration metrics by scenario and model
 
 ```{r tar-load, echo = F}
-tar_load(predeval_summary, store = here("_targets"))
-nrep <- length(unique(predeval_summary$.rep))
-tar_load(regdilution_summary, store = here("_targets"))
-
+tar_load(predeval_summary, store = prj_store)
+nrep <- length(unique(predeval_summary$.rep)) 
+tar_load(regdilution_summary, store = prj_store)
 predeval_summary <- predeval_summary %>%
   arrange(sample_size, tau, tails, .rep) 
 regdilution_summary <- regdilution_summary %>%
   arrange(sample_size, tau, tails)
-
-
-
 regdilution_vctr <- rep(regdilution_summary$beta_obs, each = 3)
 predeval_summary$regdilution <- regdilution_vctr
 ```
@@ -163,9 +162,9 @@ predeval_summary %>%
 The following figures display the $\hat{R}$ statistic of the MCMC for each of the model parameters. The red dashed lines are at 1.00 and 1.01. The boxplots are aggregated across scenario's because the values were similar in each of them and all well below 1.01.
 
 ```{r mcmc-dx, echo = F, warning = F}
-tar_load(mcmcdx_linreg_all,  store = here("_targets"))
-tar_load(mcmcdx_eivreg1_all, store = here("_targets"))
-tar_load(mcmcdx_eivreg2_all, store = here("_targets"))
+tar_load(mcmcdx_linreg_all,  store = prj_store)
+tar_load(mcmcdx_eivreg1_all, store = prj_store)
+tar_load(mcmcdx_eivreg2_all, store = prj_store)
 
 mcmcdx_linreg_all %>%
   select(-c(sample_size, tau, tails)) %>%

@@ -1,0 +1,6 @@
+project_simexp1:
+  script: _targets_simexp1.R
+  store: store_simexp1
+project_simexp2:
+  script: _targets_simexp2.R
+  store: store_simexp2

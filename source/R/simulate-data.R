@@ -2,8 +2,8 @@
 
 # sim_data
 sim_data <- function(
-    N = 100,
-    ratio_sdmex_sigmax = .1,
+    N = 200,
+    ratio_sdmex_sigmax = .05,
     ratio_sdmey_sdmex = 1,
     corr_sdmey_sdmex = 0,
     tails = "normal",
@@ -44,7 +44,7 @@ sim_data <- function(
   # additionally create an independent validation dataset (N = 1000)
   Nval   <- 1000
   x_val  <- rnorm(Nval, mu_x, sigma_x)
-  y_val  <- alpha + beta * x_true_val + rnorm(Nval, 0, sigma_y_struct)
+  y_val  <- alpha + beta * x_val + rnorm(Nval, 0, sigma_y_struct)
   xy_val_obs <- switch(
     tails,
     normal = c(x_val, y_val) + MASS::mvrnorm(Nval, c(0, 0), varme),
