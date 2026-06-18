@@ -67,3 +67,22 @@ reg_dilution <- function(data) {
   )
   tibble(beta_obs = beta_obs)
 }
+
+
+#' @title tidy_regdilution
+#' @description
+#' Extract scenario parameters from the scenario column
+#' @param df ....
+tidy_regdilution <- function(df) {
+  df %>%
+    separate_wider_delim(
+      scenario, "_", names = c("x","sample_size","tau","tails")
+    ) %>%
+    mutate(
+      sample_size = as.numeric(gsub("[^0-9.]", "", sample_size)),
+      tau = as.numeric(gsub("[^0-9.]", "", tau)),
+      tails = substr(tails, 5, nchar(tails))
+    ) %>%
+    select(sample_size, tau, tails, beta_obs)
+}
+
