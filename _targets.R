@@ -98,7 +98,8 @@ list(
   tar_combine(
     regdilution_summary,
     mapped[["regdilution"]],
-    command = bind_rows(!!!.x)
+    command = bind_rows(!!!.x, .id = "scenario") %>%
+      tidy_regdilution()
   ),
   tar_combine(
     mcmcdx_linreg_all,
