@@ -8,6 +8,7 @@ toc: true
 
 ```{r packages, echo = F}
 library(tidyverse) |> suppressPackageStartupMessages()
+library(flextable) |> suppressPackageStartupMessages()
 library(targets) |> suppressPackageStartupMessages()
 library(tarchetypes) |> suppressPackageStartupMessages()
 library(here) |> suppressPackageStartupMessages()
@@ -40,7 +41,7 @@ $$
 \begin{pmatrix} \sigma_u^2\ & \rho\sigma_u\sigma_v \\ \rho\sigma_u\sigma_v & \sigma_v^2 \end{pmatrix}
 \right)
 $$
-The measurement noise magnitudes are expressed as ratio's of the SD of the latent $X$:
+The measurement noise magnitudes are expressed as fractions of the SD of the latent $X$:
 $$
 \begin{aligned}
 \sigma_u &= \tau_x\sigma_x \\
@@ -73,50 +74,86 @@ We fit the following 3 Bayesian models on each dataset. The models are fitted wi
 ### Linear regression
 
 We assume a Gaussian likelihood for the observed data and a linear relation with the predictor. The priors are chosen to reflect prior knowledge on TF where we can reasonably expect the intercept to lie around zero and the slope to be around 1 (negative values of the slope are excluded). Without loss of generality, we assume that the predictor variable (the non-reference method) is centered and scaled to zero-mean and unit-variance. The prior on the SD of the residuals is chosen to be log-normal with zero-mean and SD 0.5; this is a rather informative prior and was chosen to be aligned with the EIV-models where an informative prior was necessary to deal with the non-identifiability problem.
+
+Priors:
 $$
 \begin{aligned}
-y_{\text{obs},i} &\sim \mathcal{N}(\beta_0 + \beta_1x_{\text{obs},i}, \sigma_y^2) \\
+\beta_0 &\sim \mathcal{N}(0, 1^2) \\
+\beta_1 &\sim \mathcal{N}^+(1, 0.5^2) \\
+\sigma_y &\sim \log\mathcal{N}(0, 0.5) \\
+\end{aligned}
+$$
+Likelihood:
+$$
+y_{\text{obs},i} \sim \mathcal{N}(\beta_0 + \beta_1x_{\text{obs},i}, \sigma_y^2)
+$$
+
+### EIV-regression with known SD of measurement error
+
+In this model, we assume we know the true value of the SD of the measurement error in $X$ ($\sigma_u$) and we pass it to the model. The EIV framework uses a hierarchical model where at the first layer, we assume the latent predictor comes from a normal distribution with mean $\mu_x$ and SD $\sigma_x$ and we assign priors to these parameters. The other priors stay as before.
+
+Priors:
+$$
+\begin{aligned}
+\mu_x &\sim \mathcal{N}(0, 1) \\
+\sigma_x &\sim \log\mathcal{N}(0, 0.5) \\
 \beta_0 &\sim \mathcal{N}(0, 1^2) \\
 \beta_1 &\sim \mathcal{N}^+(1, 0.5^2) \\
 \sigma_y &\sim \log\mathcal{N}(0, 0.5)
 \end{aligned}
 $$
 
-```{r priors, echo = F}
-
-df <- data.frame(x = seq(- 4, 4, 0.1))
-
-ggplot(df, aes(x)) +
-  geom_function(fun = dnorm, args = list(mean = 0, sd = 1), 
-                color = "red") +
-  geom_function(fun = dnorm, args = list(mean = 1, sd = .5), 
-                color = "darkgreen") +
-  geom_function(fun = dlnorm, args = list(meanlog = 0, sdlog = .5), 
-                color = "blue") + 
-  scale_x_continuous(breaks = seq(-4, 4, 1))
-
-
-```
-
-
-### EIV-regression with known SD of measurement error
-
-In this model, we assume we know the true value of the SD of the measurement error in $X$ ($\sigma_u$) and we pass it to the model. The EIV framework uses a hierarchical model where at the first layer, a latent variable for the unobserved true predictor is created which is then used as predictor for
-
+Because we use Gaussian distributions for the latent predictor, they can be integrated out, giving the following:
+$$
+\begin{aligned}
+\tilde{v} &= (\sigma_x^{-2} + \sigma_u^{-2}))^{-1} \\
+\tilde{\mu}_i &= \tilde{v} (\sigma_x^{-2} \mu_x + \sigma_u^{-2}x_i) \\
+\tilde{\sigma}_y^2 &= \sigma_y^2 + \beta_1^2 \tilde{v} \\
+\end{aligned}
+$$
+The likelihood is now composed of two terms. The weighted (shrunk) predictor $\tilde{\mu}_i$ is now used in the linear regression model and the effect of using a latent variable as predictor results in the residual variance being increased proportional with $\beta_1^2$:
+$$
+\begin{aligned}
+x_{\text{obs},i} &\sim \mathcal{N}(\mu_x, \sigma_x) \\
+y_{\text{obs},i} &\sim \mathcal{N}(\beta_0 + \beta_1\tilde{\mu}_i, \tilde{\sigma}_y^2)
+\end{aligned}
+$$
 
 ### EIV-regression with prior on SD of measurement error
 
+Same as above, the only difference is that we need to assign a (strong) prior to the unknown SD of the measurement error for which we choose the same lognormal distribution as before: $\sigma_u \sim \log\mathcal{N}(0, 0.5)$.
+
+### Priors:
+
+The following figure shows the priors used in the different models:
+
+```{r priors, echo = F}
+df <- data.frame(x = seq(- 4, 4, 0.01))
+ggplot(df, aes(x)) +
+  geom_function(fun = dnorm, args = list(mean = 0, sd = 1), 
+                aes(color = "beta_0, mu_x"), n = 1000, lwd = 1) +
+  geom_function(fun = truncnorm::dtruncnorm,
+                args = list(a = 0, mean = 1, sd = .5), 
+                aes(color = "beta_1"), n = 1000, lwd = 1) +
+  geom_function(fun = dlnorm, args = list(meanlog = 0, sdlog = .5), 
+                aes(color = "sigma_y, sigma_x, sigma_u"), n = 1000, lwd = 1) + 
+  scale_x_continuous(breaks = seq(-4, 4, 1)) +
+  theme_minimal() +
+  labs(color = "parameter(s)", x = "", y = "prior PDF")
+```
 
 <br>
 
 ## Evaluation of the models
 
+MPE, MAE, RMSE, R2, SDPE, PICP
+.... [to do]
 
 <br>
 
 ## Results
 
-
+The following figures display the results of the simulation experiment, one scenario parameter at a time (combining the scenario parameters resulted in a too cluttered figure). @tab-calibration summarizes the results for each combination of scenario parameters.
 
 ```{r, echo = FALSE}
 #| label: fig-calibration1
@@ -203,6 +240,35 @@ predeval_summary %>%
   theme_minimal() +
   theme(strip.text = element_text(face = "bold"),
         legend.position = "bottom")
+```
+
+```{r, echo = FALSE}
+#| label: tab-calibration1
+#| tab-cap: "TABLE"
+
+tab <- predeval_summary %>%
+  pivot_longer(
+    c(PICP, MAE, MPE, RMSE, R2, SDPE), 
+    names_to = "metric", values_to = "value"
+  ) %>%
+  mutate(
+    metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP")),
+    model = factor(model, c("linreg","eivreg1","eivreg2"),
+                   c("linear","EIV1","EIV2"))
+  ) %>%
+  summarise(
+    .by = c(sample_size, taux, tails, metric, model), 
+    med = round(median(value), 2)
+  ) %>%
+  pivot_wider(values_from = med, names_from = metric)
+
+tab %>%
+  flextable() %>%
+  autofit() %>%
+  merge_v(j = c("taux", "sample_size", "tails")) %>%
+  theme_box() %>%
+  set_caption("Combination of scenario parameters: median of the calibration metrics across replicates.")
+rm(tab)
 ```
 
 ```{r, echo = FALSE, message=FALSE}

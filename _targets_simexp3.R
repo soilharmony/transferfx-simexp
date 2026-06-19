@@ -1,4 +1,4 @@
-# _targets_simexp1.R
+# _targets_simexp3.R
 library(targets)
 library(tarchetypes)
 library(stantargets)
@@ -15,7 +15,7 @@ tar_source(
   files = here("source", "R")
 )
 
-labs <- colnames(simexp_design1)[grepl("_label", colnames(simexp_design1))]
+labs <- colnames(simexp_design3)[grepl("_label", colnames(simexp_design3))]
 
 
 ### ---------------- ###
@@ -25,7 +25,7 @@ list(
   # part of the pipeline to map over scenario's:
   mapped <- tar_map(
     unlist = FALSE,
-    values = simexp_design1,
+    values = simexp_design3,
     names  = all_of(labs),
     
     # for each batch/rep: draw simulated data and fit Bayesian models on it
@@ -36,9 +36,8 @@ list(
                      here("source/stan/eivreg_known_sdmex.stan"),
                      here("source/stan/eivreg_unknown_sdmex.stan")),
       data = sim_data(
-        N                  = sample_size,
-        ratio_sdmex_sigmax = ratio_sdmex_sigmax,
-        tails              = tails
+        alpha = alpha,
+        beta = beta
       ),
       seed          = 123,
       chains        = 4, parallel_chains = 4,
@@ -108,12 +107,12 @@ list(
     mcmcdx_summary,
     mapped[["mcmcdx"]],
     command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
-  ),
+  )
   
   # render a quarto report of the experiment
-  tar_quarto(
-    report_simexp1,
-    path = here("source/quarto/analysis-simexp1.qmd")
-  )
+  # tar_quarto(
+  #   report_simexp3,
+  #   path = here("source/quarto/analysis-simexp2.qmd")
+  # )
   
 )

@@ -4,3 +4,6 @@ project_simexp1:
 project_simexp2:
   script: _targets_simexp2.R
   store: store_simexp2
+project_simexp3:
+  script: _targets_simexp3.R
+  store: store_simexp3
