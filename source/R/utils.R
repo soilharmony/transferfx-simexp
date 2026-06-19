@@ -61,9 +61,10 @@ tidy_scenario <- function(df) {
                 "tails","mux","sigmax","alpha","beta","sigmay_struct")
     ) %>%
     mutate(
+      alpha = case_when(alpha == "Alpha.0.5" ~ "Alpha-0.5", TRUE ~ alpha),
       across(c(sample_size, taux, tauxy, corrme, 
                mux, sigmax, alpha, beta, sigmay_struct), 
-             ~ as.numeric(gsub("[^0-9.]", "", .x))),
+             ~ as.numeric(gsub("[^0-9.-]", "", .x))),
       tails = substr(tails, 5, nchar(tails))
     ) %>%
     select(-x)
