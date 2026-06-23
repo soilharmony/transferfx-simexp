@@ -1,0 +1,148 @@
+---
+title: "Simulation experiment (4)"
+format: 
+  html:
+    embed-resources: true
+toc: true
+---
+
+```{r, echo = F}
+library(tidyverse) |> suppressPackageStartupMessages()
+library(targets) |> suppressPackageStartupMessages()
+library(tarchetypes) |> suppressPackageStartupMessages()
+library(here) |> suppressPackageStartupMessages()
+
+# set the _target store library of the project (for interactive use)
+prj_store <- here("store_simexp4")
+tar_load(predeval_summary, store = prj_store)
+nrep <- length(unique(predeval_summary$.rep)) 
+tar_load(regdilution_summary, store = prj_store)
+predeval_summary <- predeval_summary %>%
+  arrange(sample_size, taux, tauxy, corrme, tails, 
+          mux, sigmax, alpha, beta, sigmay_struct, .rep) 
+regdilution_summary <- regdilution_summary %>%
+  arrange(sample_size, taux, tauxy, corrme, tails, 
+          mux, sigmax, alpha, beta, sigmay_struct)
+regdilution_vctr <- rep(regdilution_summary$beta_obs, each = 3)
+predeval_summary$regdilution <- regdilution_vctr
+```
+
+<br>
+
+## Design of the experiment
+
+Same as in experiment 1. In this experiment we focus on differences in the SD of the measurement error between the training and validation datasets. If the validation data has larger (or smaller) measurement error than the training dataset, and we know this, can the EIV model with known measurement error then account for this in the predictions? The linear regression model and the second EIV model are unaltered. Other parameter values are kept fixed:
+
+| Parameter              | Values                                    |
+|------------------------|-------------------------------------------|
+|$N$                     |`r unique(predeval_summary$sample_size)`   |
+|$\mu_x$                 |`r unique(predeval_summary$mux)`           |
+|$\sigma_x$              |`r unique(predeval_summary$sigmax)`        |
+|$\alpha$                |`r unique(predeval_summary$alpha)`         |
+|$\beta$                 |`r unique(predeval_summary$beta)`          |
+|$\sigma_y$              |`r unique(predeval_summary$sigmay_struct)` |
+|Tails measurement error |Normal distribution                        |
+|$\tau_x$                |`r unique(predeval_summary$taux)`          |
+|$\tau_{xy}$             |`r unique(predeval_summary$tauxy)`         |
+|$\rho$                  |`r unique(predeval_summary$corrme)`        |
+|$\sigma_u(\text{validation}) / \sigma_u(\text{training})$ |`r unique(predeval_summary$ratio_sdme)`|
+
+: Table: Parameter values for the scenario's of experiment 4.
+
+<br>
+
+## Description of the models
+
+Same as in experiment 1: 
+
+- linear regression
+- EIV-regression with known SD of measurement error: the model fitting is the same as before, but in the prediction part, we allow the user to give a new value for the SD of the measurement error (which we assume is known)
+- EIV-regression with prior on SD of measurement error
+
+## Evaluation of the models
+
+Same as in experiment 1: a validation dataset of $N$ = 1000 observations are sampled from the same data-generating mechanism as the training dataset and the fitted models are used to make predictions. The predictions are compared with the simulated validation data.
+
+<br>
+
+## Results
+
+```{r, echo = FALSE}
+#| label: fig-calibration1
+#| fig-cap: "Bla bla ...."
+
+predeval_summary %>%
+  pivot_longer(
+    c(PICP, MAE, MPE, RMSE, R2, SDPE), 
+    names_to = "metric", values_to = "value"
+  ) %>%
+  mutate(
+    metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP")),
+    model = factor(model, c("linreg","eivreg1","eivreg2"),
+                   c("Linear regression","EIV model\n(known SD)",
+                     "EIV model\n(prior on SD)"))
+  ) %>%
+  ggplot(aes(factor(taux), value, colour = model)) +
+  facet_wrap(~ metric, scales = "free_y") +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge(.1, 0)) +
+  labs(
+    title = "calibration metrics", y = "",
+    x = expression(sigma[u]/sigma[x]),
+    color = "Models"
+  ) +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"),
+        legend.position = "bottom")
+```
+
+```{r, echo = FALSE}
+#| label: fig-calibration2
+#| fig-cap: "Bla bla ...."
+
+predeval_summary %>%
+  pivot_longer(
+    c(PICP, MAE, MPE, RMSE, R2, SDPE), 
+    names_to = "metric", values_to = "value"
+  ) %>%
+  mutate(
+    metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP")),
+    model = factor(model, c("linreg","eivreg1","eivreg2"),
+                   c("Linear regression","EIV model\n(known SD)",
+                     "EIV model\n(prior on SD)"))
+  ) %>%
+  ggplot(aes(factor(ratio_sdme), value, colour = model)) +
+  facet_wrap(~ metric, scales = "free_y") +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge(.1, 0)) +
+  labs(
+    title = "calibration metrics", y = "",
+    x = expression(sigma[uv]/sigma[ut]),
+    color = "Models"
+  ) +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"),
+        legend.position = "bottom")
+```
+
+The following figure display the $\hat{R}$ statistic of the MCMC for each of the model parameters. The red dashed lines are at 1.00 and 1.01. The boxplots are aggregated across scenario's because the values were similar in each of them and all well below 1.01.
+
+```{r mcmc-dx, echo = F, warning = F}
+tar_load(mcmcdx_summary,  store = prj_store)
+
+mcmcdx_summary %>%
+  select(-c(sample_size, taux, tauxy, corrme, tails, 
+          mux, sigmax, alpha, beta, sigmay_struct, ratio_sdme)) %>%
+  pivot_longer(-c(.rep, model), names_to = "parameter", values_to = "Rhat") %>%
+  filter(!is.na(Rhat)) %>%
+  mutate(
+    model = factor(model, c("linreg","eivreg1","eivreg2"),
+                   c("Linear regression","EIV model\n(known SD)",
+                     "EIV model\n(prior on SD)"))
+  ) %>%
+  ggplot(aes(Rhat, parameter)) +
+  facet_wrap(~ model) +
+  geom_boxplot() +
+  geom_vline(xintercept = c(1.00, 1.01), lty = 2, color = "red") +
+  theme_minimal()
+```

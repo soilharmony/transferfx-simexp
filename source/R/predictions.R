@@ -117,3 +117,73 @@ predx_eivreg <- function(draws, newdata, level = .95) {
     select(uniqueid, y_true, y_obs) %>%
     left_join(yhat, by = "uniqueid")
 }
+
+
+
+# -------------------------------------------------------------------------
+# EIV model (specific for known SD meas.err.) -----------------------------
+
+#' @title predict_eivreg_knownsd
+#' @param draws_df data.frame with posterior draws
+#' @param new_data data.frame with new observations to make predictions for
+predict_eivreg_knownsd <- function(draws_df, new_data) {
+  stopifnot(# should be the same!
+    length(new_data) == length(unique(draws_df$.rep))
+  )
+  
+  # keep the necessary model parameters and nest them by .rep
+  draws_list <- draws_df %>% 
+    select(.rep, b_Intercept, b_x_obs, inv_var_x, mu_x, sigma) %>%
+    nest(.by = .rep, .key = "draws") %>%
+    mutate(
+      # extract the separate validation datasets and add them
+      validation_data = lapply(new_data, function(x) x$validation_data),
+      # extract the known SD meas.err for the validation data
+      validation_data_sdme = lapply(
+        new_data, function(x) x$validation_data_sdmeaserr
+      )
+    )
+  
+  # apply function to make predictions
+  preds <- draws_list %>%
+    mutate(
+      preds = purrr::pmap(list(draws, validation_data, validation_data_sdme),
+                          predx_eivreg_knownsd)
+    ) %>%
+    select(.rep, preds) %>%
+    unnest(preds)
+  return(preds)
+}
+
+#' @title predx_eivreg_knownsd
+#' @description
+#' Actual prediction function for the EIV model with known meas.err
+#' @param draws ....
+#' @param newdata ....
+#' @param newdatasd known sd of the meas.err in the newdata
+#' @param level ....
+predx_eivreg_knownsd <- function(draws, newdata, newdatasd, level = .95) {
+  # linear predictor
+  eta <- expand_grid(draws, newdata) %>%
+    mutate(
+      inv_var_mex = 1 / newdatasd^2,
+      tilde_v     = 1 / (inv_var_x + inv_var_mex),
+      tilde_mu    = tilde_v * (inv_var_x * mu_x + inv_var_mex * x_obs),
+      sd_yobs     = sqrt(sigma^2 + b_x_obs^2 * tilde_v),
+      eta         = b_Intercept + b_x_obs * tilde_mu
+    )
+  
+  # posterior point prediction & prediction interval
+  yhat <- eta %>%
+    mutate(ydraw = rnorm(n(), eta, sd_yobs)) %>%
+    summarise(
+      .by     = uniqueid, 
+      yhat    = mean(eta),
+      yhat_ll = quantile(ydraw, (1 - level) / 2),
+      yhat_ul = quantile(ydraw, 1 - (1 - level) / 2)
+    )
+  
+  newdata %>% 
+    select(uniqueid, y_true, y_obs) %>%
+    left_join(yhat, by = "uniqueid")
+}

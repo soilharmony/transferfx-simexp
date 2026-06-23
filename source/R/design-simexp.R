@@ -13,6 +13,7 @@
 #   alpha
 #   beta
 #   sigma_y_struct
+#   ratio_sdme_label
 
 
 scenario_labeller <- function(df) {
@@ -27,7 +28,8 @@ scenario_labeller <- function(df) {
       sigma_x_label            = paste0("Sigmax", sigma_x),
       alpha_label              = paste0("Alpha", alpha),
       beta_label               = paste0("Beta", beta),
-      sigma_y_struct_label     = paste0("Sigmay", sigma_y_struct)
+      sigma_y_struct_label     = paste0("Sigmay", sigma_y_struct),
+      ratio_sdme_label         = paste0("RatioSDme", ratio_sdmeval_sdmetrain)
     )
 }
 
@@ -48,7 +50,8 @@ simexp_design1 <- expand_grid(
   sigma_x            = 1,
   alpha              = 0,
   beta               = 1,
-  sigma_y_struct     = .1
+  sigma_y_struct     = .1,
+  ratio_sdmeval_sdmetrain = 1
 ) %>% scenario_labeller()
 
 
@@ -67,7 +70,8 @@ simexp_design2 <- expand_grid(
   sigma_x            = 1,
   alpha              = 0,
   beta               = 1,
-  sigma_y_struct     = c(.01, .1, .2)
+  sigma_y_struct     = c(.01, .1, .2),
+  ratio_sdmeval_sdmetrain = 1
 ) %>% scenario_labeller()
 
 
@@ -86,7 +90,28 @@ simexp_design3 <- expand_grid(
   sigma_x            = 1,
   alpha              = c(-0.5, 0, 0.5),
   beta               = c(0.7, 1, 1.3),
-  sigma_y_struct     = .1
+  sigma_y_struct     = .1,
+  ratio_sdmeval_sdmetrain = 1
 ) %>% scenario_labeller()
 
+
+#' varying parameters for experiment 4: 
+#' Q: when the training dataset and the validation dataset have different 
+#' measurement errors, can the model with known SD-meas.err then account for
+#' this if we make our predictions based on this new value?
+#' * ratio_sdmex_sigmax + ratio_sdmeval_sdmetrain *
+#' 
+simexp_design4 <- expand_grid(
+  sample_size        = 200,
+  ratio_sdmex_sigmax = c(0.01, 0.1, 0.2),
+  ratio_sdmey_sdmex  = 1,
+  corr_sdmey_sdmex   = 0.0,
+  tails              = "normal",
+  mu_x               = 0,
+  sigma_x            = 1,
+  alpha              = 0,
+  beta               = 1,
+  sigma_y_struct     = .1,
+  ratio_sdmeval_sdmetrain = c(0.8, 1, 1.2, 1.5)
+) %>% scenario_labeller()
 

@@ -54,16 +54,18 @@ reg_dilution <- function(data) {
 #' Extract scenario parameters from the scenario column
 #' @param df ....
 tidy_scenario <- function(df) {
+
   df %>%
     separate_wider_delim(
       scenario, "_", 
       names = c("x","sample_size","taux","tauxy","corrme",
-                "tails","mux","sigmax","alpha","beta","sigmay_struct")
+                "tails","mux","sigmax","alpha","beta","sigmay_struct",
+                "ratio_sdme")
     ) %>%
     mutate(
       alpha = case_when(alpha == "Alpha.0.5" ~ "Alpha-0.5", TRUE ~ alpha),
       across(c(sample_size, taux, tauxy, corrme, 
-               mux, sigmax, alpha, beta, sigmay_struct), 
+               mux, sigmax, alpha, beta, sigmay_struct, ratio_sdme), 
              ~ as.numeric(gsub("[^0-9.-]", "", .x))),
       tails = substr(tails, 5, nchar(tails))
     ) %>%
