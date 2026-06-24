@@ -11,7 +11,8 @@ sim_data <- function(
     sigma_x = 1,
     alpha = 0,
     beta = 1,
-    sigma_y_struct = .1
+    sigma_y_struct = .1,
+    ratio_sdmeval_sdmetrain = 1
 ) {
   
   # latent predictor
@@ -42,13 +43,19 @@ sim_data <- function(
   )
   
   # additionally create an independent validation dataset (N = 1000)
-  Nval   <- 1000
-  x_val  <- rnorm(Nval, mu_x, sigma_x)
-  y_val  <- alpha + beta * x_val + rnorm(Nval, 0, sigma_y_struct)
+  Nval    <- 1000
+  x_val   <- rnorm(Nval, mu_x, sigma_x)
+  y_val   <- alpha + beta * x_val + rnorm(Nval, 0, sigma_y_struct)
+  sdmex_v <- ratio_sdmeval_sdmetrain * sdmex
+  sdmey_v <- ratio_sdmeval_sdmetrain * sdmey
+  varme_v <- matrix(
+    c(sdmex_v^2, rep(sdmex_v * sdmey_v * corr_sdmey_sdmex, 2), sdmey_v^2),
+    byrow = TRUE, nrow = 2
+  )
   xy_val_obs <- switch(
     tails,
-    normal = c(x_val, y_val) + MASS::mvrnorm(Nval, c(0, 0), varme),
-    tdf3   = c(x_val, y_val) + mvtnorm::rmvt(Nval, 1/3*sqrt(varme), df = 3)
+    normal = c(x_val, y_val) + MASS::mvrnorm(Nval, c(0, 0), varme_v),
+    tdf3   = c(x_val, y_val) + mvtnorm::rmvt(Nval, 1/3*sqrt(varme_v), df = 3)
   )
   data_val <- data.frame(
     uniqueid = 1:Nval, # observation ID, useful for joining
@@ -58,6 +65,7 @@ sim_data <- function(
     x_obs    = xy_val_obs[,1]
   )
   df_stan$validation_data <- data_val
+  df_stan$validation_data_sdmeaserr <- sdmex_v
   
   return(df_stan)
 }
