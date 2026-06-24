@@ -38,7 +38,8 @@ scenario_labeller <- function(df) {
 #' varying parameters for experiment 1: 
 #' Q: what is the impact of the sample size, the tails of the measurement error 
 #' and the ratio between the SD of the latent X and the measurement error on X?
-#' * sample_size + ratio_sdmex_sigmax + tails *
+#' 
+#' sample_size + ratio_sdmex_sigmax + tails
 #' 
 simexp_design1 <- expand_grid(
   sample_size        = c(100, 200, 500),
@@ -58,7 +59,8 @@ simexp_design1 <- expand_grid(
 #' varying parameters for experiment 2: 
 #' Q: what is the impact of the structural residual variance between the latent
 #' values (sigma_y_struct) and the correlation between the measurement errors?
-#' * sigma_y_struct + corr_sdmey_sdmex *
+#' 
+#' sigma_y_struct + corr_sdmey_sdmex
 #' 
 simexp_design2 <- expand_grid(
   sample_size        = 200,
@@ -78,7 +80,8 @@ simexp_design2 <- expand_grid(
 #' varying parameters for experiment 3: 
 #' Q: when we keep our priors on alpha and beta fixed, but the true values
 #' are not 0 and 1, does it hurt our predictions?
-#' * alpha + beta *
+#' 
+#' alpha + beta
 #' 
 simexp_design3 <- expand_grid(
   sample_size        = 200,
@@ -99,7 +102,8 @@ simexp_design3 <- expand_grid(
 #' Q: when the training dataset and the validation dataset have different 
 #' measurement errors, can the model with known SD-meas.err then account for
 #' this if we make our predictions based on this new value?
-#' * ratio_sdmex_sigmax + ratio_sdmeval_sdmetrain *
+#' 
+#' ratio_sdmex_sigmax + ratio_sdmeval_sdmetrain
 #' 
 simexp_design4 <- expand_grid(
   sample_size        = 200,
