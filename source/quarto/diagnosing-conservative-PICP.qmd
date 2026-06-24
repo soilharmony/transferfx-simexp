@@ -17,19 +17,19 @@ Fitting frequentist regression models needs to be outside the pipeline because t
 
 ```{r}
 # import data objects from the pipeline
-obj  <- tar_objects(store = here("_targets"))
+obj  <- tar_objects(store = here("store_simexp1"))
 obj  <- obj[grepl("mcmc_data_", obj)]
 
 # allocating memory for a for-loop (not very tidy, I know :-))
 # translate to map_ later
 N    <- length(obj)
-n    <- length(tar_read_raw(obj[1], store = here("_targets")))
+n    <- length(tar_read_raw(obj[1], store = here("store_simexp1")))
 Ntot <- N * n
 results <- data.frame(
   rep         = vector("character", Ntot),
   subrep      = vector("numeric", Ntot),
   sample_size = vector("numeric", Ntot),
-  tau         = vector("numeric", Ntot),
+  taux        = vector("numeric", Ntot),
   tails       = vector("character", Ntot),
   PICP = vector("numeric", Ntot)
 )
@@ -49,12 +49,12 @@ fit_predict_flinreg <- function(tarobj) {
 
 a <- 1
 for (i in seq_along(obj)) {
-  data_list <- tar_read_raw(obj[i], store = here("_targets"))
+  data_list <- tar_read_raw(obj[i], store = here("store_simexp1"))
   scenario  <- stringr::str_split(obj[i],"_")[[1]]
   for (j in seq_along(data_list)) {
     results$rep[a]         <- scenario[6]
     results$sample_size[a] <- as.numeric(gsub("[^0-9.]", "", scenario[3]))
-    results$tau[a]         <- as.numeric(gsub("[^0-9.]", "", scenario[4]))
+    results$taux[a]        <- as.numeric(gsub("[^0-9.]", "", scenario[4]))
     results$tails[a]       <- substr(scenario[5], 5, nchar(scenario[5]))
     results$subrep[a] <- j
     data_sublist      <- data_list[[j]]
@@ -65,14 +65,12 @@ for (i in seq_along(obj)) {
 rm(i, j, a, data_list, data_sublist)
 ```
 
-@fig-results shows the results: the PICP stays overly conservative.
-
 ```{r, echo=FALSE}
 #| label: fig-results
 #| fig-cap: "Summary of the results"
 
 results %>%
-  ggplot(aes(factor(tau), PICP, color = tails)) +
+  ggplot(aes(factor(taux), PICP)) +
   facet_wrap(~ sample_size) +
   geom_boxplot() +
   geom_jitter(position = position_jitterdodge(jitter.height = 0,

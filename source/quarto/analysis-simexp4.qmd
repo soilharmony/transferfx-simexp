@@ -23,7 +23,7 @@ predeval_summary <- predeval_summary %>%
 regdilution_summary <- regdilution_summary %>%
   arrange(sample_size, taux, tauxy, corrme, tails, 
           mux, sigmax, alpha, beta, sigmay_struct)
-regdilution_vctr <- rep(regdilution_summary$beta_obs, each = 3)
+regdilution_vctr <- rep(regdilution_summary$beta_obs, each = 4)
 predeval_summary$regdilution <- regdilution_vctr
 ```
 
@@ -53,10 +53,9 @@ Same as in experiment 1. In this experiment we focus on differences in the SD of
 
 ## Description of the models
 
-Same as in experiment 1: 
-
 - linear regression
-- EIV-regression with known SD of measurement error: the model fitting is the same as before, but in the prediction part, we allow the user to give a new value for the SD of the measurement error (which we assume is known)
+- EIV-regression with known SD of measurement error in the training data only. We assume that the validation data has the same measurement error as the training data.
+- EIV-regression with known SD of measurement error: the model fitting is the same as before, but in the prediction part, we allow the user to give a new value for the SD of the measurement error in the validation dataset (which we assume is known too).
 - EIV-regression with prior on SD of measurement error
 
 ## Evaluation of the models
@@ -78,8 +77,10 @@ predeval_summary %>%
   ) %>%
   mutate(
     metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP")),
-    model = factor(model, c("linreg","eivreg1","eivreg2"),
-                   c("Linear regression","EIV model\n(known SD)",
+    model = factor(model, c("linreg","eivreg11","eivreg12","eivreg2"),
+                   c("Linear regression",
+                     "EIV model\n(known SD training)",
+                     "EIV model\n(known SD training + validation)",
                      "EIV model\n(prior on SD)"))
   ) %>%
   ggplot(aes(factor(taux), value, colour = model)) +
@@ -107,8 +108,10 @@ predeval_summary %>%
   ) %>%
   mutate(
     metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP")),
-    model = factor(model, c("linreg","eivreg1","eivreg2"),
-                   c("Linear regression","EIV model\n(known SD)",
+    model = factor(model, c("linreg","eivreg11","eivreg12","eivreg2"),
+                   c("Linear regression",
+                     "EIV model\n(known SD training)",
+                     "EIV model\n(known SD training + validation)",
                      "EIV model\n(prior on SD)"))
   ) %>%
   ggplot(aes(factor(ratio_sdme), value, colour = model)) +

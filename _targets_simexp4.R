@@ -65,7 +65,10 @@ list(
     tar_target(preds_linreg,
                predict_linreg(mcmc_linreg, mcmc_data),
                pattern = map(mcmc_linreg, mcmc_data)),
-    tar_target(preds_eivreg1,
+    tar_target(preds_eivreg11, #EIV1 model but ignoring knowledge of different SD
+               predict_eivreg(mcmc_eivreg_known_sdmex, mcmc_data),
+               pattern = map(mcmc_eivreg_known_sdmex, mcmc_data)),
+    tar_target(preds_eivreg12,
                predict_eivreg_knownsd(mcmc_eivreg_known_sdmex, mcmc_data),
                pattern = map(mcmc_eivreg_known_sdmex, mcmc_data)),
     tar_target(preds_eivreg2,
@@ -73,7 +76,7 @@ list(
                pattern = map(mcmc_eivreg_unknown_sdmex, mcmc_data)),
     tar_target(
       predeval,
-      eval_preds(preds_linreg, preds_eivreg1, preds_eivreg2)
+      eval_preds(preds_linreg, preds_eivreg11, preds_eivreg12, preds_eivreg2)
     ),
     
     # MCMC-diagnostics
