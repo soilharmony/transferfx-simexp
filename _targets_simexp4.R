@@ -35,7 +35,7 @@ list(
       stan_files = c(here("source/stan/linreg.stan"),
                      here("source/stan/eivreg_known_sdmex.stan"),
                      here("source/stan/eivreg_unknown_sdmex.stan")),
-      data = sim_data2(
+      data = sim_data(
         ratio_sdmex_sigmax      = ratio_sdmex_sigmax,
         ratio_sdmeval_sdmetrain = ratio_sdmeval_sdmetrain
       ),
@@ -65,7 +65,7 @@ list(
     tar_target(preds_linreg,
                predict_linreg(mcmc_linreg, mcmc_data),
                pattern = map(mcmc_linreg, mcmc_data)),
-    tar_target(preds_eivreg11, #EIV1 model but ignoring knowledge of different SD
+    tar_target(preds_eivreg11,#EIV1 model but ignoring knowledge of different SD
                predict_eivreg(mcmc_eivreg_known_sdmex, mcmc_data),
                pattern = map(mcmc_eivreg_known_sdmex, mcmc_data)),
     tar_target(preds_eivreg12,
