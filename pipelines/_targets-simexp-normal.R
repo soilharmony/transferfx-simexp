@@ -1,4 +1,4 @@
-# _targets_simexp3.R
+# _targets-simexp-normal.R
 library(targets)
 library(tarchetypes)
 library(stantargets)
@@ -8,14 +8,25 @@ library(here) |> suppressPackageStartupMessages()
 library(quarto)
 library(crew)
 
+# Pre-compile the models sequentially
+cmdstanr::cmdstan_model(here("source/stan-normal/linreg.stan"))
+cmdstanr::cmdstan_model(here("source/stan-normal/eivreg_known_sdmex.stan"))
+cmdstanr::cmdstan_model(here("source/stan-normal/eivreg_unknown_sdmex.stan"))
+
 tar_option_set(
   controller = crew_controller_local(workers = 5)
 )
 tar_source(
-  files = here("source", "R")
+  files = c(
+    here("source/R/design-simexp-normal.R"),
+    here("source/R/simulate-data-normal.R"),
+    here("source/R/predictions.R"),
+    here("source/R/evaluate-predictions.R"),
+    here("source/R/utils.R")
+  )
 )
 
-labs <- colnames(simexp_design3)[grepl("_label", colnames(simexp_design3))]
+labs <- colnames(simexp_design1)[grepl("_label", colnames(simexp_design1))]
 
 
 ### ---------------- ###
@@ -25,19 +36,20 @@ list(
   # part of the pipeline to map over scenario's:
   mapped <- tar_map(
     unlist = FALSE,
-    values = simexp_design3,
+    values = simexp_design1,
     names  = all_of(labs),
     
     # for each batch/rep: draw simulated data and fit Bayesian models on it
     # the function sim_data returns both a training and a validation dataset
     tar_stan_mcmc_rep_draws(
       name       = mcmc,
-      stan_files = c(here("source/stan/linreg.stan"),
-                     here("source/stan/eivreg_known_sdmex.stan"),
-                     here("source/stan/eivreg_unknown_sdmex.stan")),
+      stan_files = c(here("source/stan-normal/linreg.stan"),
+                     here("source/stan-normal/eivreg_known_sdmex.stan"),
+                     here("source/stan-normal/eivreg_unknown_sdmex.stan")),
       data = sim_data(
-        alpha = alpha,
-        beta = beta
+        N                  = sample_size,
+        ratio_sdmex_sigmax = ratio_sdmex_sigmax,
+        tails              = tails
       ),
       seed          = 123,
       chains        = 4, parallel_chains = 4,
@@ -48,13 +60,6 @@ list(
       reps          = 2,
       stdout = R.utils::nullfile(),
       stderr = R.utils::nullfile()
-    ),
-    
-    # quantification of regression dilution (in the training data)
-    tar_target(
-      regdilution,
-      reg_dilution(mcmc_data),
-      pattern = map(mcmc_data)
     ),
     
     # evaluate predictions
@@ -74,6 +79,12 @@ list(
     tar_target(
       predeval,
       eval_preds(preds_linreg, preds_eivreg1, preds_eivreg2)
+    ),
+    # paired ELPD model comparison (see compare_models() in
+    # evaluate-predictions.R)
+    tar_target(
+      predcompare,
+      compare_models(preds_linreg, preds_eivreg1, preds_eivreg2)
     ),
     
     # MCMC-diagnostics
@@ -99,8 +110,8 @@ list(
     command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
   ),
   tar_combine(
-    regdilution_summary,
-    mapped[["regdilution"]],
+    predcompare_summary,
+    mapped[["predcompare"]],
     command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
   ),
   tar_combine(
@@ -111,8 +122,8 @@ list(
   
   # render a quarto report of the experiment
   tar_quarto(
-    report_simexp3,
-    path = here("source/quarto/analysis-simexp3.qmd")
+    report_simexp1,
+    path = here("source/quarto/analysis-simexp1.qmd")
   )
   
 )

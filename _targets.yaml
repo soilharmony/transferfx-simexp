@@ -1,30 +1,3 @@
-project_simexp1:
-  script: _targets_simexp1.R
-  store: store_simexp1
-project_simexp2:
-  script: _targets_simexp2.R
-  store: store_simexp2
-project_simexp3:
-  script: _targets_simexp3.R
-  store: store_simexp3
-project_simexp4:
-  script: _targets_simexp4.R
-  store: store_simexp4
-project_simexp5:
-  script: _targets_simexp5.R
-  store: store_simexp5
-project_simexp5bis:
-  script: _targets_simexp5bis.R
-  store: store_simexp5bis
-project_simexp6:
-  script: _targets_simexp6.R
-  store: store_simexp6
-project_simexp7:
-  script: _targets_simexp7.R
-  store: store_simexp7
-project_simexp8:
-  script: _targets_simexp8.R
-  store: store_simexp8
-project_simexp9:
-  script: _targets_simexp9.R
-  store: store_simexp9
+project_simexp_normal:
+  script: pipelines/_targets-simexp-normal.R
+  store: pipelines/store-simexp-normal
