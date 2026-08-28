@@ -1,5 +1,5 @@
-# predictions.R
-# set of R functions for predictions
+# predictions-normal.R
+# set of R functions for predictions in case of normal DGM
 
 
 
@@ -26,45 +26,12 @@ predict_linreg <- function(draws_df, new_data) {
   
   # apply function to make predictions
   preds <- draws_list %>%
-    mutate(preds = purrr::map2(draws, validation_data, predx_linreg_matrix)) %>%
+    mutate(preds = purrr::map2(draws, validation_data, 
+                               predx_linreg_matrix)) %>%
     select(.rep, preds) %>%
     unnest(preds)
   return(preds)
 }
-
-#' @title predx_linreg
-#' @description
-#' Actual prediction function for the linear models
-#' @param draws ....
-#' @param newdata ....
-#' @param level ....
-predx_linreg <- function(draws, newdata, level = .95) {
-  # linear predictor
-  eta <- expand_grid(draws, newdata) %>%
-    mutate(eta = b_Intercept + b_x_obs * x_obs)
-  
-  # posterior point prediction & prediction interval
-  yhat <- eta %>%
-    mutate(ydraw = rnorm(n(), eta, sigma)) %>%
-    summarise(
-      .by     = uniqueid, 
-      yhat    = mean(eta),
-      yhat_ll = unname(quantile(ydraw, (1 - level) / 2)),
-      yhat_ul = unname(quantile(ydraw, 1 - (1 - level) / 2))
-    )
-  
-  newdata %>% 
-    select(uniqueid, y_true, y_obs) %>%
-    left_join(yhat, by = "uniqueid")
-}
-
-#' @title predx_linreg
-#' @description
-#' Actual prediction function for the linear models
-#' @param draws ....
-#' @param newdata ....
-#' @param level ....
-# Install if necessary: install.packages("matrixStats")
 
 predx_linreg_matrix <- function(draws, newdata, level = .95) {
   N <- nrow(newdata)
@@ -82,7 +49,8 @@ predx_linreg_matrix <- function(draws, newdata, level = .95) {
   # 3. Calculate EXACT Pointwise LPPD for the validation data
   log_lik_mat <- matrix(NA_real_, nrow = N, ncol = D)
   for (d in 1:D) {
-    # Evaluate density of the TRUE unseen observation (y_obs) against the posterior
+    # Evaluate density of the TRUE unseen observation (y_obs) 
+    # against the posterior
     log_lik_mat[, d] <- dnorm(
       x    = newdata$y_obs, 
       mean = eta_mat[, d], 
@@ -135,39 +103,11 @@ predict_eivreg <- function(draws_df, new_data) {
   
   # apply function to make predictions
   preds <- draws_list %>%
-    mutate(preds = purrr::map2(draws, validation_data, predx_eivreg_matrix)) %>%
+    mutate(preds = purrr::map2(draws, validation_data, 
+                               predx_eivreg_matrix)) %>%
     select(.rep, preds) %>%
     unnest(preds)
   return(preds)
-}
-
-#' @title predx_eivreg
-#' @description
-#' Actual prediction function for the EIV models
-#' @param draws ....
-#' @param newdata ....
-#' @param level ....
-predx_eivreg <- function(draws, newdata, level = .95) {
-  # linear predictor
-  eta <- expand_grid(draws, newdata) %>%
-    mutate(
-      tilde_mu = tilde_v * (inv_var_x * mu_x + inv_var_mex * x_obs),
-      eta      = b_Intercept + b_x_obs * tilde_mu
-    )
-  
-  # posterior point prediction & prediction interval
-  yhat <- eta %>%
-    mutate(ydraw = rnorm(n(), eta, sd_yobs)) %>%
-    summarise(
-      .by     = uniqueid, 
-      yhat    = mean(eta),
-      yhat_ll = unname(quantile(ydraw, (1 - level) / 2)),
-      yhat_ul = unname(quantile(ydraw, 1 - (1 - level) / 2))
-    )
-  
-  newdata %>% 
-    select(uniqueid, y_true, y_obs) %>%
-    left_join(yhat, by = "uniqueid")
 }
 
 predx_eivreg_matrix <- function(draws, newdata, level = .95) {
@@ -217,6 +157,7 @@ predx_eivreg_matrix <- function(draws, newdata, level = .95) {
     select(uniqueid, y_true, y_obs, yhat, yhat_ll, yhat_ul, lppd)
 }
 
+
 # -------------------------------------------------------------------------
 # EIV model (specific for known SD meas.err.) -----------------------------
 
@@ -250,39 +191,6 @@ predict_eivreg_knownsd <- function(draws_df, new_data) {
     select(.rep, preds) %>%
     unnest(preds)
   return(preds)
-}
-
-#' @title predx_eivreg_knownsd
-#' @description
-#' Actual prediction function for the EIV model with known meas.err
-#' @param draws ....
-#' @param newdata ....
-#' @param newdatasd known sd of the meas.err in the newdata
-#' @param level ....
-predx_eivreg_knownsd <- function(draws, newdata, newdatasd, level = .95) {
-  # linear predictor
-  eta <- expand_grid(draws, newdata) %>%
-    mutate(
-      inv_var_mex = 1 / newdatasd^2,
-      tilde_v     = 1 / (inv_var_x + inv_var_mex),
-      tilde_mu    = tilde_v * (inv_var_x * mu_x + inv_var_mex * x_obs),
-      sd_yobs     = sqrt(sigma^2 + b_x_obs^2 * tilde_v),
-      eta         = b_Intercept + b_x_obs * tilde_mu
-    )
-  
-  # posterior point prediction & prediction interval
-  yhat <- eta %>%
-    mutate(ydraw = rnorm(n(), eta, sd_yobs)) %>%
-    summarise(
-      .by     = uniqueid, 
-      yhat    = mean(eta),
-      yhat_ll = unname(quantile(ydraw, (1 - level) / 2)),
-      yhat_ul = unname(quantile(ydraw, 1 - (1 - level) / 2))
-    )
-  
-  newdata %>% 
-    select(uniqueid, y_true, y_obs) %>%
-    left_join(yhat, by = "uniqueid")
 }
 
 predx_eivreg_knownsd_matrix <- function(draws, newdata, newdatasd, level = .95) {

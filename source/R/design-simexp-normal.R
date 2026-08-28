@@ -1,133 +1,60 @@
 # design-simexp-normal.R
-#
 # design simulation experiments with normal distributed variables
 
 
 
+# parameters of the scenario's  (first = default value):
+# should match the arguments of the function sim_data_normal()
+params <- list(
+  sample_size             = c(200, 100, 500),
+  ratio_sdmex_sigmax      = c(0.1, 0.01, 0.2),
+  ratio_sdmey_sdmex       = c(1, 0.9, 1.1),
+  corr_sdmey_sdmex        = c(0, 0.5, 0.9),
+  tails                   = c("normal", "tdf3"),
+  mu_x                    = 0,
+  sigma_x                 = 1,
+  alpha                   = c(0, -0.5, 0.5),
+  beta                    = c(1, 0.7, 1.3),
+  sigma_y_struct          = c(.1, .01, .2),
+  ratio_sdmeval_sdmetrain = c(1, 0.8, 1.2, 1.5)
+)
+defaults <- lapply(params, `[`, 1)
 
-# -------------------------------------------------------------------------
-# gaussian data, gaussian noise -------------------------------------------
+# one block per parameter: vary that parameter, keep others at default
+df_list <- lapply(names(params), function(pname) {
+  # only for parameters with 2+ values
+  nvals <- length(params[[pname]])
+  if (nvals >= 2) {
+    df <- as.data.frame(defaults, stringsAsFactors = FALSE)
+    df <- df[rep(1, nvals), ] # repeat default row
+    df[[pname]] <- params[[pname]] # overwrite with variations
+    df$varying[rep(1, nvals)] <- pname
+    df
+  }
+})
 
-# parameters of the scenario's:
-# should match the arguments of the function sim_data()
-#   sample_size
-#   ratio_sdmex_sigmax
-#   ratio_sdmey_sdmex
-#   corr_sdmey_sdmex
-#   tails
-#   mu_x
-#   sigma_x
-#   alpha
-#   beta
-#   sigma_y_struct
-#   ratio_sdme_label
+scenarios <- do.call(rbind, df_list)
+rownames(scenarios) <- NULL
 
-
-scenario_labeller <- function(df) {
-  df %>% 
-    mutate(
-      sample_size_label        = paste0("Nsample", sample_size), 
-      ratio_sdmex_sigmax_label = paste0("Taux", ratio_sdmex_sigmax),
-      ratio_sdmey_sdmex_label  = paste0("Tauxy", ratio_sdmey_sdmex),
-      corr_sdmey_sdmex_label   = paste0("CorrME", corr_sdmey_sdmex),
-      tails_label              = paste0("Tail",tails),
-      mu_x_label               = paste0("Mux", mu_x),
-      sigma_x_label            = paste0("Sigmax", sigma_x),
-      alpha_label              = paste0("Alpha", alpha),
-      beta_label               = paste0("Beta", beta),
-      sigma_y_struct_label     = paste0("Sigmay", sigma_y_struct),
-      ratio_sdme_label         = paste0("RatioSDme", ratio_sdmeval_sdmetrain)
+# provide labels for targets pipeline
+scenarios <- scenarios %>% 
+  mutate(
+    scenario_label = case_when(
+      varying == "sample_size" ~ paste0("Nsample", sample_size),
+      varying == "ratio_sdmex_sigmax" ~ paste0("Taux", ratio_sdmex_sigmax),
+      varying == "ratio_sdmey_sdmex" ~ paste0("Tauxy", ratio_sdmey_sdmex),
+      varying == "corr_sdmey_sdmex" ~ paste0("CorrME", corr_sdmey_sdmex),
+      varying == "tails" ~ paste0("Tail",tails),
+      varying == "mu_x" ~ paste0("Mux", mu_x),
+      varying == "sigma_x" ~ paste0("Sigmax", sigma_x),
+      varying == "alpha" ~ paste0("Alpha", alpha),
+      varying == "beta" ~ paste0("Beta", beta),
+      varying == "sigma_y_struct" ~ paste0("Sigmay", sigma_y_struct),
+      varying == "ratio_sdmeval_sdmetrain" ~ paste0("RatioSDme",
+                                                    ratio_sdmeval_sdmetrain)
     )
-}
+  )
 
 
+rm(params, defaults, df_list)
 
-#' varying parameters for experiment 1: 
-#' Q: what is the impact of the sample size, the tails of the measurement error 
-#' and the ratio between the SD of the latent X and the measurement error on X?
-#' 
-#' sample_size + ratio_sdmex_sigmax + tails
-#' 
-simexp_design1 <- expand_grid(
-  sample_size        = c(100, 200, 500),
-  ratio_sdmex_sigmax = c(0.01, 0.1, 0.2),
-  ratio_sdmey_sdmex  = 1,
-  corr_sdmey_sdmex   = 0,
-  tails              = c("normal", "tdf3"),
-  mu_x               = 0,
-  sigma_x            = 1,
-  alpha              = 0,
-  beta               = 1,
-  sigma_y_struct     = .1,
-  ratio_sdmeval_sdmetrain = 1
-) %>% scenario_labeller()
-
-
-#' varying parameters for experiment 2: 
-#' Q: what is the impact of the structural residual variance between the latent
-#' values (sigma_y_struct) and the correlation between the measurement errors?
-#' 
-#' sigma_y_struct + corr_sdmey_sdmex
-#' 
-simexp_design2 <- expand_grid(
-  sample_size        = 200,
-  ratio_sdmex_sigmax = 0.1,
-  ratio_sdmey_sdmex  = 1,
-  corr_sdmey_sdmex   = c(0.0, 0.5, 0.9),
-  tails              = "normal",
-  mu_x               = 0,
-  sigma_x            = 1,
-  alpha              = 0,
-  beta               = 1,
-  sigma_y_struct     = c(.01, .1, .2),
-  ratio_sdmeval_sdmetrain = 1
-) %>% scenario_labeller()
-
-
-#' varying parameters for experiment 3: 
-#' Q: when we keep our priors on alpha and beta fixed, but the true values
-#' are not 0 and 1, does it hurt our predictions?
-#' 
-#' alpha + beta
-#' 
-simexp_design3 <- expand_grid(
-  sample_size        = 200,
-  ratio_sdmex_sigmax = 0.1,
-  ratio_sdmey_sdmex  = 1,
-  corr_sdmey_sdmex   = 0.0,
-  tails              = "normal",
-  mu_x               = 0,
-  sigma_x            = 1,
-  alpha              = c(-0.5, 0, 0.5),
-  beta               = c(0.7, 1, 1.3),
-  sigma_y_struct     = .1,
-  ratio_sdmeval_sdmetrain = 1
-) %>% scenario_labeller()
-
-
-#' varying parameters for experiment 4: 
-#' Q: when the training dataset and the validation dataset have different 
-#' measurement errors, can the model with known SD-meas.err then account for
-#' this if we make our predictions based on this new value?
-#' 
-#' ratio_sdmex_sigmax + ratio_sdmeval_sdmetrain
-#' 
-simexp_design4 <- expand_grid(
-  sample_size        = 200,
-  ratio_sdmex_sigmax = c(0.01, 0.1, 0.2),
-  ratio_sdmey_sdmex  = 1,
-  corr_sdmey_sdmex   = 0.0,
-  tails              = "normal",
-  mu_x               = 0,
-  sigma_x            = 1,
-  alpha              = 0,
-  beta               = 1,
-  sigma_y_struct     = .1,
-  ratio_sdmeval_sdmetrain = c(0.8, 1, 1.2, 1.5)
-) %>% scenario_labeller()
-
-
-
-
-
- 

@@ -20,13 +20,15 @@ tar_source(
   files = c(
     here("source/R/design-simexp-normal.R"),
     here("source/R/simulate-data-normal.R"),
-    here("source/R/predictions.R"),
+    here("source/R/predictions-normal.R"),
     here("source/R/evaluate-predictions.R"),
+    here("source/R/mcmc_dx.R"),
     here("source/R/utils.R")
   )
 )
+rm(tidy_scenario_gamma)
 
-labs <- colnames(simexp_design1)[grepl("_label", colnames(simexp_design1))]
+scenario_label <- scenarios$scenario_label
 
 
 ### ---------------- ###
@@ -36,8 +38,8 @@ list(
   # part of the pipeline to map over scenario's:
   mapped <- tar_map(
     unlist = FALSE,
-    values = simexp_design1,
-    names  = all_of(labs),
+    values = scenarios,
+    names  = scenario_label,
     
     # for each batch/rep: draw simulated data and fit Bayesian models on it
     # the function sim_data returns both a training and a validation dataset
@@ -46,10 +48,18 @@ list(
       stan_files = c(here("source/stan-normal/linreg.stan"),
                      here("source/stan-normal/eivreg_known_sdmex.stan"),
                      here("source/stan-normal/eivreg_unknown_sdmex.stan")),
-      data = sim_data(
-        N                  = sample_size,
-        ratio_sdmex_sigmax = ratio_sdmex_sigmax,
-        tails              = tails
+      data = sim_data_normal(
+        sample_size             = sample_size,
+        ratio_sdmex_sigmax      = ratio_sdmex_sigmax,
+        ratio_sdmey_sdmex       = ratio_sdmey_sdmex,
+        corr_sdmey_sdmex        = corr_sdmey_sdmex,
+        tails                   = tails,
+        mu_x                    = mu_x,
+        sigma_x                 = sigma_x,
+        alpha                   = alpha,
+        beta                    = beta,
+        sigma_y_struct          = sigma_y_struct,
+        ratio_sdmeval_sdmetrain = ratio_sdmeval_sdmetrain
       ),
       seed          = 123,
       chains        = 4, parallel_chains = 4,
@@ -71,7 +81,7 @@ list(
                predict_linreg(mcmc_linreg, mcmc_data),
                pattern = map(mcmc_linreg, mcmc_data)),
     tar_target(preds_eivreg1,
-               predict_eivreg(mcmc_eivreg_known_sdmex, mcmc_data),
+               predict_eivreg_knownsd(mcmc_eivreg_known_sdmex, mcmc_data),
                pattern = map(mcmc_eivreg_known_sdmex, mcmc_data)),
     tar_target(preds_eivreg2,
                predict_eivreg(mcmc_eivreg_unknown_sdmex, mcmc_data),
@@ -107,23 +117,23 @@ list(
   tar_combine(
     predeval_summary,
     mapped[["predeval"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario_normal()
   ),
   tar_combine(
     predcompare_summary,
     mapped[["predcompare"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario_normal()
   ),
   tar_combine(
     mcmcdx_summary,
     mapped[["mcmcdx"]],
-    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario()
+    command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario_normal()
   ),
   
   # render a quarto report of the experiment
   tar_quarto(
     report_simexp1,
-    path = here("source/quarto/analysis-simexp1.qmd")
+    path = here("source/quarto/analysis-simexp-normal.qmd")
   )
   
 )
