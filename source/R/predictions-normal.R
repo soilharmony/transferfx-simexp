@@ -34,6 +34,7 @@ predict_linreg <- function(draws_df, new_data) {
 }
 
 predx_linreg_matrix <- function(draws, newdata, level = .95) {
+  
   N <- nrow(newdata)
   D <- nrow(draws)
   
@@ -68,14 +69,24 @@ predx_linreg_matrix <- function(draws, newdata, level = .95) {
     probs = c((1 - level) / 2, 1 - (1 - level) / 2)
   )
   
-  # 5. Attach back to the original data
+  # 5. Continuous Ranked Probability Scores
+  # => compare each y_obs in the validation dataset against the empirical CDF
+  #    of the posterior predictive distribution
+  crps <- scoringRules::crps_sample(
+    dat = ydraw_mat,
+    y   = newdata$y_obs
+  )
+  # sanity check: plot(lppd_pointwise, crps) => strong negative correlation
+  
+  # 6. Attach back to the original data
   newdata$yhat    <- yhat
   newdata$yhat_ll <- quants[, 1]
   newdata$yhat_ul <- quants[, 2]
   newdata$lppd    <- lppd_pointwise
+  newdata$crps    <- crps
 
   newdata %>% 
-    select(uniqueid, y_true, y_obs, yhat, yhat_ll, yhat_ul, lppd)
+    select(uniqueid, y_true, y_obs, yhat, yhat_ll, yhat_ul, lppd, crps)
 }
 
 
@@ -147,14 +158,23 @@ predx_eivreg_matrix <- function(draws, newdata, level = .95) {
     probs = c((1 - level) / 2, 1 - (1 - level) / 2)
   )
   
-  # 6. Attach back to the original data
+  # 6. Continuous Ranked Probability Scores
+  # => compare each y_obs in the validation dataset against the empirical CDF
+  #    of the posterior predictive distribution
+  crps <- scoringRules::crps_sample(
+    dat = ydraw_mat,
+    y   = newdata$y_obs
+  )
+  
+  # 7. Attach back to the original data
   newdata$yhat    <- yhat
   newdata$yhat_ll <- quants[, 1]
   newdata$yhat_ul <- quants[, 2]
   newdata$lppd    <- lppd_pointwise
+  newdata$crps    <- crps
   
   newdata %>% 
-    select(uniqueid, y_true, y_obs, yhat, yhat_ll, yhat_ul, lppd)
+    select(uniqueid, y_true, y_obs, yhat, yhat_ll, yhat_ul, lppd, crps)
 }
 
 
@@ -235,14 +255,23 @@ predx_eivreg_knownsd_matrix <- function(draws, newdata, newdatasd, level = .95) 
     probs = c((1 - level) / 2, 1 - (1 - level) / 2)
   )
   
-  # 7. Attach back to the original data
+  # 7. Continuous Ranked Probability Scores
+  # => compare each y_obs in the validation dataset against the empirical CDF
+  #    of the posterior predictive distribution
+  crps <- scoringRules::crps_sample(
+    dat = ydraw_mat,
+    y   = newdata$y_obs
+  )
+  
+  # 8. Attach back to the original data
   newdata$yhat    <- yhat
   newdata$yhat_ll <- quants[, 1]
   newdata$yhat_ul <- quants[, 2]
   newdata$lppd    <- lppd_pointwise
+  newdata$crps    <- crps
   
   newdata %>% 
-    select(uniqueid, y_true, y_obs, yhat, yhat_ll, yhat_ul, lppd)
+    select(uniqueid, y_true, y_obs, yhat, yhat_ll, yhat_ul, lppd, crps)
 }
 
 
