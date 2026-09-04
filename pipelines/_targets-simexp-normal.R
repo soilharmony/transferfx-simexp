@@ -23,10 +23,9 @@ tar_source(
     here("source/R/predictions-normal.R"),
     here("source/R/evaluate-predictions.R"),
     here("source/R/mcmc_dx.R"),
-    here("source/R/utils.R")
+    here("source/R/utils-normal.R")
   )
 )
-rm(tidy_scenario_gamma)
 
 scenario_label <- scenarios$scenario_label
 
