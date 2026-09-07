@@ -162,7 +162,7 @@ predx_eivreg_matrix <- function(draws, newdata, level = .95) {
   # 6. Continuous Ranked Probability Scores
   # => compare each y_obs in the validation dataset against the empirical CDF
   #    of the posterior predictive distribution
-  crps <- scoringRules::crps_sample(
+  crps <- -1 * scoringRules::crps_sample(
     dat = ydraw_mat,
     y   = newdata$y_obs
   )
@@ -259,7 +259,7 @@ predx_eivreg_knownsd_matrix <- function(draws, newdata, newdatasd, level = .95) 
   # 7. Continuous Ranked Probability Scores
   # => compare each y_obs in the validation dataset against the empirical CDF
   #    of the posterior predictive distribution
-  crps <- scoringRules::crps_sample(
+  crps <- -1 * scoringRules::crps_sample(
     dat = ydraw_mat,
     y   = newdata$y_obs
   )
