@@ -131,7 +131,7 @@ list(
   
   # render a quarto report of the experiment
   tar_quarto(
-    report_simexp1,
+    report_simexp,
     path = here("source/quarto/analysis-simexp-normal.qmd")
   )
   
