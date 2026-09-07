@@ -72,11 +72,12 @@ predx_linreg_matrix <- function(draws, newdata, level = .95) {
   # 5. Continuous Ranked Probability Scores
   # => compare each y_obs in the validation dataset against the empirical CDF
   #    of the posterior predictive distribution
-  crps <- scoringRules::crps_sample(
+  crps <- -1 * scoringRules::crps_sample(
     dat = ydraw_mat,
     y   = newdata$y_obs
   )
   # sanity check: plot(lppd_pointwise, crps) => strong negative correlation
+  # we take the minus sign to be aligned with ELPD
   
   # 6. Attach back to the original data
   newdata$yhat    <- yhat
