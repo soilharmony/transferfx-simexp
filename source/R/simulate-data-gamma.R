@@ -20,17 +20,19 @@
 #' @param ratio_mey_mex ratio between the CV of the meas.err: cv_mey / cv_mex
 #' @param corr_error correlation between x- and y- measurement errors
 sim_data_gamma <- function(
-    N               = 200,
-    mu_x            = 1,      
-    cv_x            = .5, 
-    alpha           = 0,
-    beta            = 1,
-    cv_y            = 0.05,
-    ratio_cvmex_cvx = 0.05,
-    ratio_mey_mex   = 1,
-    corr_error      = 0,
+    sample_size          = 200,
+    mu_x                 = 1,      
+    cv_x                 = .5, 
+    alpha                = 0,
+    beta                 = 1,
+    cv_y                 = 0.05,
+    ratio_cvmex_cvx      = 0.05,
+    ratio_mey_mex        = 1,
+    corr_error           = 0,
     ratio_cvme_val_train = 1
 ) {
+  
+  N <- sample_size
   
   # latent predictor ~ Gamma()
   # transform (mu, cv) -> (shape, rate)
@@ -91,7 +93,7 @@ sim_data_gamma <- function(
     y_true_new = y_true_val, # not used by STAN
     x_obs_new  = x_obs_val,
     y_obs_new  = y_obs_val,   # not used by STAN
-    cv_mex_val = cv_mex_val,  # only for use in the EIV-model with known CV in the validation data
+    cv_mex_val = cv_mex_val,  # only for use in EIV-model with known CV
     # Appending the validation data frame to the output list
     validation_data = data_val # not used by STAN
   )
@@ -100,23 +102,23 @@ sim_data_gamma <- function(
 }
 
 
-#' sim_data_ECEC
-#' wrapper around sim_data_gamma() for ECEC-like data
-sim_data_ECEC <- function(N = 200, draws_params_hdi) {
-  idx <- sample(1:nrow(draws_params_hdi), 1)
-  df_stan <- sim_data_gamma(
-    N               = N,     # not a model parameter, we choose this
-    mu_x            = draws_params_hdi$mu_x[idx], 
-    cv_x            = draws_params_hdi$cv_x[idx],
-    cv_y            = 1/sqrt(draws_params_hdi$shape[idx]),
-    alpha           = draws_params_hdi$beta0[idx],
-    beta            = draws_params_hdi$beta1[idx],
-    ratio_cvmex_cvx = draws_params_hdi$ratio_cvmex_cvx[idx],
-    ratio_mey_mex   = 1,     # not a model parameter, we choose this
-    corr_error      = 0.5,   # not a model parameter, we choose this
-    ratio_cvme_val_train = 1 # not a model parameter, we choose this
-  )
-  return(df_stan)
-}
-
+#' #' sim_data_ECEC
+#' #' wrapper around sim_data_gamma() for ECEC-like data
+#' sim_data_ECEC <- function(N = 200, draws_params_hdi) {
+#'   idx <- sample(1:nrow(draws_params_hdi), 1)
+#'   df_stan <- sim_data_gamma(
+#'     sample_size     = N,     # not a model parameter, we choose this
+#'     mu_x            = draws_params_hdi$mu_x[idx], 
+#'     cv_x            = draws_params_hdi$cv_x[idx],
+#'     cv_y            = 1/sqrt(draws_params_hdi$shape[idx]),
+#'     alpha           = draws_params_hdi$beta0[idx],
+#'     beta            = draws_params_hdi$beta1[idx],
+#'     ratio_cvmex_cvx = draws_params_hdi$ratio_cvmex_cvx[idx],
+#'     ratio_mey_mex   = 1,     # not a model parameter, we choose this
+#'     corr_error      = 0.5,   # not a model parameter, we choose this
+#'     ratio_cvme_val_train = 1 # not a model parameter, we choose this
+#'   )
+#'   return(df_stan)
+#' }
+#' 
 
