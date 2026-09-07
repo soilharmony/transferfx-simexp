@@ -34,13 +34,14 @@ val_metrics <- function(df) {
       PICP = mean(between(y_obs, yhat_ll, yhat_ul)),
       ELPD    = sum(lppd), # Exact Expected Log Predictive Density
       ELPD_SE = sqrt(n() * var(lppd)),
-      CRPS = mean(crps)
+      CRPS    = mean(crps),
+      CRPS_SE = sd(crps) / sqrt(n())
     )
 }
 
 #' @title compare_models
 #' @description
-#' Paired ELPD model comparison. This reproduces what loo::loo_compare()
+#' Paired ELPD/CRPS model comparison. This reproduces what loo::loo_compare()
 #' computes internally (elpd_diff = sum of pointwise differences, se_diff =
 #' sqrt(N * var(pointwise differences))) -- but pairs models on the SAME
 #' validation observation (via `uniqueid`) rather than requiring a `loo`
@@ -52,6 +53,8 @@ val_metrics <- function(df) {
 #' @param ... set of models to compare, passed as different arguments
 #'   (same convention as eval_preds())
 compare_models <- function(...) {
+  #browser()
+  
   preds        <- list(...)
   names(preds) <- stringr::str_split_i(
     as.character(as.list(substitute(list(...)))[-1]),
@@ -62,23 +65,32 @@ compare_models <- function(...) {
       mutate(model = names(preds)[i])
   }
   long <- data.table::rbindlist(preds, use.names = TRUE, fill = TRUE) %>%
-    select(model, .rep, uniqueid, lppd)
+    select(model, .rep, uniqueid, lppd, crps)
 
   model_names <- names(preds)
   pairs <- utils::combn(model_names, 2, simplify = FALSE)
 
   purrr::map_dfr(pairs, function(p) {
+    elpd1 <- paste0("lppd_",p[1])
+    elpd2 <- paste0("lppd_",p[2])
+    crps1 <- paste0("crps_",p[1])
+    crps2 <- paste0("crps_",p[2])
     long %>%
       filter(model %in% p) %>%
-      tidyr::pivot_wider(names_from = model, values_from = lppd) %>%
-      mutate(diff = .data[[p[1]]] - .data[[p[2]]]) %>%
+      tidyr::pivot_wider(names_from = model, values_from = c(lppd, crps)) %>%
+      mutate(
+        diff_elpd = .data[[elpd1]] - .data[[elpd2]],
+        diff_crps = .data[[crps1]] - .data[[crps2]]
+      ) %>%
       summarise(
         .by       = .rep,
         model_a   = p[1],
         model_b   = p[2],
         n         = n(),
-        elpd_diff = sum(diff),
-        se_diff   = sqrt(n * var(diff))
+        elpd_diff    = sum(diff_elpd),
+        se_elpd_diff = sqrt(n * var(diff_elpd)),
+        crps_diff    = mean(diff_crps),
+        se_crps_diff = sd(diff_crps)/sqrt(n)
       )
   })
 }
