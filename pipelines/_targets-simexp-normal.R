@@ -21,7 +21,7 @@ tar_source(
     here("source/R/design-simexp-normal.R"),
     here("source/R/simulate-data-normal.R"),
     here("source/R/predictions-normal.R"),
-    here("source/R/evaluate-predictions.R"),
+    here("source/R/evaluate-predictions-normal.R"),
     here("source/R/mcmc_dx.R"),
     here("source/R/utils-normal.R")
   )
