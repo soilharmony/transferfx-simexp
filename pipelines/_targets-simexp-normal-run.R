@@ -15,8 +15,9 @@ tar_visnetwork()
 tar_make(use_crew = TRUE, as_job = TRUE)
 #tar_make(callr_function = NULL, use_crew = FALSE, as_job = FALSE)
 
-# total runtime of the pipeline (per target?)
-# ??????????????????????
+# total runtime of the pipeline, per target
+tar_meta(fields = c(name, type, seconds)) %>%
+  View()
 
 tar_meta(fields = warnings, complete_only = TRUE) %>% View()
 
