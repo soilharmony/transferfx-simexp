@@ -14,8 +14,9 @@
 #'   gamma_linreglogtrafo.stan. yhat/yhat_ll/yhat_ul stay Monte-Carlo based
 #'   off `y_new_rep` as before, regardless of family -- only lppd needs to
 #'   know the likelihood.
-summarise_predictions <- function(mcmc, data,
-                                   family = c("gamma", "normal", "lognormal")) {
+summarise_predictions <- function(
+    mcmc, data, family = c("gamma", "normal", "lognormal")
+) {
   family <- match.arg(family)
   #browser()
   preds <- mcmc %>%
@@ -28,12 +29,12 @@ summarise_predictions <- function(mcmc, data,
   validation_data <- data.table::rbindlist(
     lapply(data, get_validation_data)
   ) %>% mutate(.by = .dataset_id, uniqueid = 1:n())
-  lppd <- compute_lppd(mcmc, data, family = family)
+  lppd_crps <- compute_lppd_crps(mcmc, data, family = family)
   validation_data %>%
     left_join(preds, by = c(".dataset_id","uniqueid")) %>%
-    left_join(lppd,  by = c(".dataset_id","uniqueid")) %>%
+    left_join(lppd_crps,  by = c(".dataset_id","uniqueid")) %>%
     select(.rep, .dataset_id, uniqueid, 
-           y_true_new, y_obs_new, yhat, yhat_ll, yhat_ul, lppd)
+           y_true_new, y_obs_new, yhat, yhat_ll, yhat_ul, lppd, crps)
 }
 
 #' predx_summary
@@ -95,6 +96,64 @@ val_metrics_gamma <- function(df) {
       PNEG   = mean(yhat <= 0),
       PNEGll = mean(yhat_ll <= 0),
       ELPD    = sum(lppd),           # exact expected log predictive density
-      ELPD_SE = sqrt(n() * var(lppd))
+      ELPD_SE = sqrt(n() * var(lppd)),
+      CRPS    = mean(crps),          # continuously ranked probability scores
+      CRPS_SE = sd(crps) / sqrt(n())
     ) 
+}
+
+#' @title compare_models
+#' @description
+#' Paired ELPD/CRPS model comparison. This reproduces what loo::loo_compare()
+#' computes internally (elpd_diff = sum of pointwise differences, se_diff =
+#' sqrt(N * var(pointwise differences))) -- but pairs models on the SAME
+#' validation observation (via `uniqueid`) rather than requiring a `loo`
+#' S3 object, since the pointwise `lppd` column from predx_..._matrix()
+#' already contains everything the comparison needs. Pairing matters here:
+#' it gives a tighter, more appropriate SE than treating each model's ELPD
+#' as independent, since both models are evaluated on identical held-out
+#' points.
+#' @param ... set of models to compare, passed as different arguments
+#'   (same convention as eval_preds())
+compare_models <- function(...) {
+  #browser()
+  
+  preds        <- list(...)
+  names(preds) <- stringr::str_split_i(
+    as.character(as.list(substitute(list(...)))[-1]),
+    "_", 2
+  )
+  for (i in seq_along(preds)) {
+    preds[[i]] <- preds[[i]] %>%
+      mutate(model = names(preds)[i])
+  }
+  long <- data.table::rbindlist(preds, use.names = TRUE, fill = TRUE) %>%
+    select(model, .rep, uniqueid, lppd, crps)
+  
+  model_names <- names(preds)
+  pairs <- utils::combn(model_names, 2, simplify = FALSE)
+  
+  purrr::map_dfr(pairs, function(p) {
+    elpd1 <- paste0("lppd_",p[1])
+    elpd2 <- paste0("lppd_",p[2])
+    crps1 <- paste0("crps_",p[1])
+    crps2 <- paste0("crps_",p[2])
+    long %>%
+      filter(model %in% p) %>%
+      tidyr::pivot_wider(names_from = model, values_from = c(lppd, crps)) %>%
+      mutate(
+        diff_elpd = .data[[elpd1]] - .data[[elpd2]],
+        diff_crps = .data[[crps1]] - .data[[crps2]]
+      ) %>%
+      summarise(
+        .by       = .rep,
+        model_a   = p[1],
+        model_b   = p[2],
+        n         = n(),
+        elpd_diff    = sum(diff_elpd),
+        se_elpd_diff = sqrt(n * var(diff_elpd)),
+        crps_diff    = mean(diff_crps),
+        se_crps_diff = sd(diff_crps)/sqrt(n)
+      )
+  })
 }
