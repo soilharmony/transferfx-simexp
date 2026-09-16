@@ -51,7 +51,7 @@ list(
         here("source/stan-gamma/gamma_linreglogtrafo.stan"),
         here("source/stan-gamma/gammareg.stan"),
         here("source/stan-gamma/gammareg_eiv_knowncvmex.stan"),
-        here("source/stan-gamma/gammareg_eiv_unknowncvmex.stan"),
+        here("source/stan-gamma/gammareg_eiv_unknowncvmex.stan")
       ),
       data = sim_data_gamma(
         sample_size          = sample_size,
@@ -116,7 +116,7 @@ list(
                        preds_gammaregeivunknowncvmex)
     ),
     
-    # paired ELPD model comparison (see compare_models() in
+    # paired ELPD/CRPS model comparison (see compare_models() in
     # evaluate-predictions-gamma.R)
     tar_target(
       predcompare,
@@ -164,12 +164,12 @@ list(
     mcmcdx_summary,
     mapped[["mcmcdx"]],
     command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario_gamma()
-  )
+  ),
   
   # render a quarto report of the experiment
-  # tar_quarto(
-  #   report_simexp,
-  #   path = here("source/quarto/analysis-simexp-gamma.qmd")
-  # )
+  tar_quarto(
+    report_simexp,
+    path = here("source/quarto/analysis-simexp-gamma.qmd")
+  )
   
 )
