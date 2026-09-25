@@ -31,18 +31,11 @@ summarise_predictions <- function(mcmc, data) {
     lapply(data, get_validation_data)
   )
 
-  # Chi-square critical value for 95% region, 2 df
-  crit <- sqrt( qchisq(0.95, df = 2) )
-  # make a unit circle as a basis to construct a 95% prediction ellipse
-  theta  <- seq(0, 2*pi, length.out = 200)
-  circle <- cbind(cos(theta), sin(theta))
-  
   # calculate prediction errors in the ILR-space
   pred_summary <- validation_data %>%
     left_join(draws_new_obs_long, by = c(".dataset_id","id")) %>%
     mutate(
-      err = map2(ilr_obs, ilr_pred, .f = ilr_err, 
-                 crit=crit, circle=circle)
+      err = map2(ilr_obs, ilr_pred, .f = ilr_err)
     ) %>%
     unnest(err) %>%
     select(.dataset_id, .rep, id, adist, in_ellipse)
@@ -65,20 +58,18 @@ get_validation_data <- function(data) {
 
 #' ilr_err
 #' helper function for summarise_predictions()
-ilr_err <- function(obs, pred, crit, circle) {
+ilr_err <- function(obs, pred) {
   #browser()
+  
   # Aitchinson distance between obs & point estimate (bias):
   est   <- colMeans(pred) # point-estimate in ILR-space
   adist <- compositions::norm(obs - est)
-  # prediction coverage:
-  err         <- sweep(pred, 2, est, "-")
-  err_mean    <- colMeans(err)
-  err_sigma   <- cov(err)
-  L           <- chol(err_sigma) # scale/rotate unit circle into the ellipse
-  ellipse_ilr <- crit * (circle %*% L)
-  ellipse_ilr <- sweep(ellipse_ilr, 2, est, "+") # recenter on point estimate
-  in_ellipse  <- between(obs[1], min(ellipse_ilr[,1]), max(ellipse_ilr[,1])) &
-    between(obs[2], min(ellipse_ilr[,2]), max(ellipse_ilr[,2]))
+  
+  # 95% prediction ellipse coverage:
+  d2          <- mahalanobis(obs, colMeans(pred), cov(pred))
+  in_ellipse  <- d2 <= 5.991465 # qchisq(.95, df = 2) = 5.991465
+  
+  # ELPD/CRPS
   
   return(data.frame(adist = adist, in_ellipse = in_ellipse))
 }
