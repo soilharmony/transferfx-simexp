@@ -21,7 +21,7 @@ tidy_scenario_simplex <- function(df) {
                        "Alpha", "Alpha", "Alpha",
                        "Beta", "Beta", "Beta",
                        "SDy", "SDy", "SDy",
-                       "Taux", "Taux", "Taux", "Taux",
+                       "Taux", "Taux", "Taux",
                        "Tauxy", "Tauxy", "Tauxy",
                        "CorrME", "CorrME", "CorrME",
                        "RatioSDme", "RatioSDme", "RatioSDme", "RatioSDme"),
