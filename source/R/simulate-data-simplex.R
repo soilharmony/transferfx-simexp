@@ -129,6 +129,7 @@ sim_data_simplex <- function(
     #### validation data
     N_new         = N_new,
     ilr_x_obs_new = ilr_x_obs_new,
+    ilr_y_obs_new = ilr_y_obs_new,
     psd_new       = cbind(id = 1:N_new, psd_new, psd_obs_new),
     Sigma_mex_new = diag(sd_mex_new^2)
   )
