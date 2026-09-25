@@ -102,23 +102,3 @@ sim_data_gamma <- function(
 }
 
 
-#' #' sim_data_ECEC
-#' #' wrapper around sim_data_gamma() for ECEC-like data
-#' sim_data_ECEC <- function(N = 200, draws_params_hdi) {
-#'   idx <- sample(1:nrow(draws_params_hdi), 1)
-#'   df_stan <- sim_data_gamma(
-#'     sample_size     = N,     # not a model parameter, we choose this
-#'     mu_x            = draws_params_hdi$mu_x[idx], 
-#'     cv_x            = draws_params_hdi$cv_x[idx],
-#'     cv_y            = 1/sqrt(draws_params_hdi$shape[idx]),
-#'     alpha           = draws_params_hdi$beta0[idx],
-#'     beta            = draws_params_hdi$beta1[idx],
-#'     ratio_cvmex_cvx = draws_params_hdi$ratio_cvmex_cvx[idx],
-#'     ratio_mey_mex   = 1,     # not a model parameter, we choose this
-#'     corr_error      = 0.5,   # not a model parameter, we choose this
-#'     ratio_cvme_val_train = 1 # not a model parameter, we choose this
-#'   )
-#'   return(df_stan)
-#' }
-#' 
-
