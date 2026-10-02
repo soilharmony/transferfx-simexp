@@ -10,7 +10,7 @@ tidy_scenario_simplex <- function(df) {
   # add more scenarios if necessary
   df_scenarios <- data.frame(
     scenario = c("Nsample200", "Nsample100", "Nsample500",
-                 "Alpha0", "Alpha-0.5", "Alpha0.5",
+                 "Alpha0", "Alpha.0.5", "Alpha0.5",
                  "Beta1", "Beta0.7", "Beta1.3",
                  "SDy0.1", "SDy0.01", "SDy0.2",
                  "Taux0.1", "Taux0.01", "Taux0.2",     
