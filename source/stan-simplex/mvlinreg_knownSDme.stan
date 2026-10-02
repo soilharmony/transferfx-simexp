@@ -1,5 +1,5 @@
 // multivariate error-in-variables regression
-//  with known covariance of the measurement error in the (K-1)-dim predictor
+// with known covariance of the measurement error in the (K-1)-dim predictor
 
 // written by Claude-AI
 
@@ -56,7 +56,8 @@ transformed parameters {
   matrix[Kx, Kx] L_Sigma_xobs   = cholesky_decompose(Sigma_xobs);
   matrix[Kx, Kx] L_Sigma_ymarg  = cholesky_decompose(Sigma_y_marg);
 
-  // E[x | x_obs] for every observation: tilde_mu_i = tilde_V (Sx^-1 mu_x + Smex^-1 x_obs_i)
+  // E[x | x_obs] for every observation: 
+  // tilde_mu_i = tilde_V (Sx^-1 mu_x + Smex^-1 x_obs_i)
   array[N] vector[Kx] tilde_mu;
   {
     vector[Kx] prior_term = Sigma_x_inv * mu_x;
@@ -82,7 +83,9 @@ model {
   // marginal likelihood of y given x_obs (integrates out x)
   {
     array[N] vector[Kx] Mu_y;
-    for (i in 1:N) Mu_y[i] = b0 + B * tilde_mu[i];
+    for (i in 1:N) {
+      Mu_y[i] = b0 + B * tilde_mu[i];
+    }
     ilr_y_obs ~ multi_normal_cholesky(Mu_y, L_Sigma_ymarg);
   }
 }
@@ -95,7 +98,9 @@ generated quantities {
   {
     vector[Kx] prior_term = Sigma_x_inv * mu_x;
     for (i in 1:N_new) {
-      vector[Kx] tilde_mu_new = tilde_V * (prior_term + Sigma_mex_inv * ilr_x_obs_new[i]);
+      vector[Kx] tilde_mu_new = tilde_V * (
+        prior_term + Sigma_mex_inv * ilr_x_obs_new[i]
+      );
       ilr_y_obs_new_rep[i] = multi_normal_cholesky_rng(
         b0 + B * tilde_mu_new, L_Sigma_ymarg
       );

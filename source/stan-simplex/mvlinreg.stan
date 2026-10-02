@@ -20,7 +20,9 @@ transformed data {
   }
   array[N_new] vector[K] ilr1_x_obs_new;
   for (i in 1:N_new) {
-    ilr1_x_obs_new[i] = to_vector(append_col(1, to_row_vector(ilr_x_obs_new[i])));
+    ilr1_x_obs_new[i] = to_vector(
+      append_col(1, to_row_vector(ilr_x_obs_new[i]))
+    );
   }
 }
 
