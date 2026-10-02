@@ -1,44 +1,36 @@
 # predictions-simplex.R
-# Exact pointwise log predictive density (lppd) for the simplex-experiment
-# Stan models. This is deliberately kept separate from the Monte-Carlo
-# based yhat/interval logic in evaluate-predictions-simplex.R: yhat/yhat_ll/
-# yhat_ul are already fine using the `y_new_rep` posterior predictive
-# draws Stan already generates, but lppd needs the *analytic* density, so it
-# can't be read off `y_new_rep` alone.
 
-#' @title compute_lppd_crps
-#' @description
-#' Dispatches to the correct density family and returns a data.frame of
-#' `.dataset_id`, `uniqueid`, `lppd`, `crps` -- ready to left_join() onto the
-#' `preds` data.frame built from `y_new_rep` in `summarise_predictions()`.
-#' @param mcmc posterior draws (as passed into summarise_predictions())
-#' @param data list of per-dataset Stan data lists (as passed into
-#'   summarise_predictions())
-compute_lppd_crps <- function(mcmc, data) {
+#' @title compute_crps
+#' @param data list of per-dataset Stan data lists (as passed into summarise_predictions())
+#' @param draws_new_obs_long posterior predictive draws for new observations
+compute_crps <- function(data, draws_new_obs_long) {
+  #browser()
   
-  # index the data list by .dataset_id for lookup inside the map below
-  data_by_id <- setNames(data, sapply(data, function(x) x$.dataset_id))
+  # extract the observed reference method values (ILR-space)
+  ilr_y_obs <- lapply(data, function(x) 
+    tibble(.dataset_id   = x$.dataset_id,
+           id            = as.character(x$psd_new$id),
+           ilr_y_obs_new = asplit(as.matrix(x$ilr_y_obs_new), 1, drop = TRUE))
+  ) %>% data.table::rbindlist()
   
-  draws_nested <- mcmc %>%
-    select(.dataset_id, shape, contains("new")) %>%
-    nest(.by = .dataset_id, .key = "draws")
-
-  draws_nested %>%
+  # bind with predictions of the reference method (ILR-space)
+  draws_new_obs_long %>%
     mutate(
-      lppd_crps_df = purrr::map2(
-        draws, .dataset_id,
-        function(draws, id) lppd_fn(draws, data_by_id[[as.character(id)]])
+      # take a subsample of 1000 posterior predictive draws 
+      # (from the original 4000) to speed up computation
+      # this changes little to the results
+      ilr_pred = map(ilr_pred, function(x) t(x %>% slice_sample(n = 1000)))
+    ) %>% 
+    left_join(ilr_y_obs, by = c(".dataset_id", "id")) %>%
+    mutate(
+      # calculate energy score (not vectorized)
+      ES = map2_dbl(
+        ilr_y_obs_new, ilr_pred, 
+        function(yobs, ypred) {
+          scoringRules::es_sample(yobs, ypred)
+        }
       )
     ) %>%
-    select(.dataset_id, lppd_crps_df) %>%
-    unnest(lppd_crps_df)
+    select(.dataset_id, .rep, id, ES)
 }
 
-
-#' helper function for compute_lppd_crps
-#' @param draws data.frame of posterior draws with columns `L_Sigma` and
-#'   `mu_new[1]`...`mu_new[N_new]`
-#' @param d the Stan data list for this dataset (needs `N_new`, `y_obs_new`)
-lppd_fn <- function(draws, d) {
-  
-}

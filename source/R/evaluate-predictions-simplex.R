@@ -39,6 +39,11 @@ summarise_predictions <- function(mcmc, data) {
     ) %>%
     unnest(err) %>%
     select(.dataset_id, .rep, id, adist, in_ellipse)
+  
+  # calculate multivariate CRPS (energy score)
+  crps <- compute_crps(data, draws_new_obs_long)
+  
+  left_join(pred_summary, crps, by = c(".dataset_id", ".rep", "id"))
 }
 
 
@@ -68,8 +73,6 @@ ilr_err <- function(obs, pred) {
   # 95% prediction ellipse coverage:
   d2          <- mahalanobis(obs, colMeans(pred), cov(pred))
   in_ellipse  <- d2 <= 5.991465 # qchisq(.95, df = 2) = 5.991465
-  
-  # ELPD/CRPS
   
   return(data.frame(adist = adist, in_ellipse = in_ellipse))
 }
@@ -101,8 +104,49 @@ val_metrics_simplex <- function(df) {
   df %>%
     summarise(
       .by = c(model, .rep),
-      MAD  = mean(adist),     # mean Aitchinson distance
-      PECP = mean(in_ellipse) # prediction ellipse coverage probability
+      MAD   = mean(adist),       # mean Aitchinson distance
+      PECP  = mean(in_ellipse),  # prediction ellipse coverage probability
+      ES    = mean(ES),          # mean energy score
+      ES_SE = sd(ES) / sqrt(n()) # se of the energy score
     ) 
 }
 
+#' @title compare_models
+#' @description
+#' Paired CRPS model comparison. 
+#' @param ... set of models to compare, passed as different arguments
+compare_models <- function(...) {
+  #browser()
+  
+  preds        <- list(...)
+  names(preds) <- stringr::str_split_i(
+    as.character(as.list(substitute(list(...)))[-1]),
+    "_", 2
+  )
+  for (i in seq_along(preds)) {
+    preds[[i]] <- preds[[i]] %>%
+      mutate(model = names(preds)[i])
+  }
+  long <- data.table::rbindlist(preds, use.names = TRUE, fill = TRUE) %>%
+    select(model, .rep, id, ES)
+  
+  model_names <- names(preds)
+  pairs <- utils::combn(model_names, 2, simplify = FALSE)
+  
+  purrr::map_dfr(pairs, function(p) {
+    long %>%
+      filter(model %in% p) %>%
+      tidyr::pivot_wider(names_from = model, values_from = ES) %>%
+      mutate(
+        diff_crps = .data[[p[1]]] - .data[[p[2]]]
+      ) %>%
+      summarise(
+        .by          = .rep,
+        model_a      = p[1],
+        model_b      = p[2],
+        n            = n(),
+        crps_diff    = mean(diff_crps),
+        se_crps_diff = sd(diff_crps)/sqrt(n)
+      )
+  })
+}
