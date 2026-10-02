@@ -67,8 +67,8 @@ list(
       iter_warmup   = 1000,
       iter_sampling = 1000,
       refresh       = 0,
-      batches       = 1,
-      reps          = 1,
+      batches       = 5,
+      reps          = 3,
       stdout = R.utils::nullfile(),
       stderr = R.utils::nullfile()
     ),
@@ -91,8 +91,7 @@ list(
       eval_preds_simplex(preds_mvlinreg, preds_mvlinregknownSDme)
     ),
     
-    # paired ELPD/CRPS model comparison (see compare_models() in
-    # evaluate-predictions-gamma.R)
+    # paired CRPS model comparison
     tar_target(
       predcompare,
       compare_models(preds_mvlinreg, preds_mvlinregknownSDme)
@@ -100,14 +99,14 @@ list(
     
     # MCMC-diagnostics
     tar_target(mcmcdx_mvlinreg,
-               mcmc_dx(mcmc_mvlinreg),
+               mcmc_dx_simplex(mcmc_mvlinreg),
                pattern = map(mcmc_mvlinreg)),
-    tar_target(mcmcdx_mvlinreg_knownSDme,
-               mcmc_dx(mcmc_mvlinreg_knownSDme),
+    tar_target(mcmcdx_mvlinregknownSDme,
+               mcmc_dx_simplex(mcmc_mvlinreg_knownSDme),
                pattern = map(mcmc_mvlinreg_knownSDme)),
     tar_target(
       mcmcdx,
-      combine_mcmcdx(mcmcdx_mvlinreg, mcmcdx_mvlinreg_knownSDme)
+      combine_mcmcdx(mcmcdx_mvlinreg, mcmcdx_mvlinregknownSDme)
     )
   ),
   
