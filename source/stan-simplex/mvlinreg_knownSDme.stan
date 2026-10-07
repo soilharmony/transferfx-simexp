@@ -13,11 +13,13 @@ data {
   // new data for prediction only (not used in model fitting)
   int<lower=0> N_new;
   array[N_new] vector[K-1] ilr_x_obs_new;
+  cov_matrix[K-1] Sigma_mex_new;  // KNOWN covariance matrix of me-x new data
 }
 
 transformed data {
   int Kx = K - 1;
   matrix[Kx, Kx] Sigma_mex_inv = inverse_spd(Sigma_mex);
+  matrix[Kx, Kx] Sigma_mex_new_inv = inverse_spd(Sigma_mex_new);
 }
 
 parameters {
@@ -48,13 +50,19 @@ transformed parameters {
 
   // --- analytic marginalization over the latent x ---
   matrix[Kx, Kx] Sigma_xobs = Sigma_x + Sigma_mex;              // Var(x_obs)
+  matrix[Kx, Kx] Sigma_xobs_new = Sigma_x + Sigma_mex_new;
   matrix[Kx, Kx] tilde_V_inv = Sigma_x_inv + Sigma_mex_inv;     // precision of x | x_obs
+  matrix[Kx, Kx] tilde_V_inv_new = Sigma_x_inv + Sigma_mex_new_inv; 
   matrix[Kx, Kx] tilde_V = inverse_spd(tilde_V_inv);            // Var(x | x_obs)
+  matrix[Kx, Kx] tilde_V_new = inverse_spd(tilde_V_inv_new);            
   matrix[Kx, Kx] Sigma_y_marg = quad_form(tilde_V, B') + Sigma_y; // Var(y | x_obs)
+  matrix[Kx, Kx] Sigma_y_marg_new = quad_form(tilde_V_new, B') + Sigma_y; 
 
   // Cholesky factors for the two marginal MVN likelihoods
   matrix[Kx, Kx] L_Sigma_xobs   = cholesky_decompose(Sigma_xobs);
   matrix[Kx, Kx] L_Sigma_ymarg  = cholesky_decompose(Sigma_y_marg);
+  matrix[Kx, Kx] L_Sigma_xobs_new   = cholesky_decompose(Sigma_xobs_new);
+  matrix[Kx, Kx] L_Sigma_ymarg_new  = cholesky_decompose(Sigma_y_marg_new);
 
   // E[x | x_obs] for every observation: 
   // tilde_mu_i = tilde_V (Sx^-1 mu_x + Smex^-1 x_obs_i)
@@ -98,11 +106,11 @@ generated quantities {
   {
     vector[Kx] prior_term = Sigma_x_inv * mu_x;
     for (i in 1:N_new) {
-      vector[Kx] tilde_mu_new = tilde_V * (
-        prior_term + Sigma_mex_inv * ilr_x_obs_new[i]
+      vector[Kx] tilde_mu_new = tilde_V_new * (
+        prior_term + Sigma_mex_new_inv * ilr_x_obs_new[i]
       );
       ilr_y_obs_new_rep[i] = multi_normal_cholesky_rng(
-        b0 + B * tilde_mu_new, L_Sigma_ymarg
+        b0 + B * tilde_mu_new, L_Sigma_ymarg_new
       );
     }
   }
