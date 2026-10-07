@@ -9,7 +9,6 @@
 #' @param mcmc posterior draws
 #' @param data list of per-dataset Stan data lists
 summarise_predictions <- function(mcmc, data) {
-  #browser()
   
   draws_new_obs <- mcmc %>%
     select(.dataset_id, .rep, contains("ilr_y_obs_new_rep"))
@@ -38,7 +37,7 @@ summarise_predictions <- function(mcmc, data) {
       err = map2(ilr_obs, ilr_pred, .f = ilr_err)
     ) %>%
     unnest(err) %>%
-    select(.dataset_id, .rep, id, adist, in_ellipse)
+    select(.dataset_id, .rep, id, ilr_obs_mean_dist, adist, in_ellipse)
   
   # calculate multivariate CRPS (energy score)
   crps <- compute_crps(data, draws_new_obs_long)
@@ -50,7 +49,8 @@ summarise_predictions <- function(mcmc, data) {
 #' get_validation_data
 #' helper function for summarise_predictions()
 get_validation_data <- function(data) {
-  data.frame(
+  
+  tmp <- data.frame(
     .dataset_id = rep(data$.dataset_id, data$N_new),
     id          = as.character(data$psd_new$id),
     y_obs_clay  = data$psd_new$y_obs_clay,
@@ -59,16 +59,30 @@ get_validation_data <- function(data) {
   ) %>%
     nest(.by = c(.dataset_id, id), .key = "psd_obs") %>%
     mutate(ilr_obs = map(psd_obs, compositions::ilr))
+  
+  # for use in R² calculations: distance between the ILR-coordinate and the mean
+  # of all observations
+  tmp <- tmp %>%
+    mutate(
+      ilr_obs_mean = list(colMeans(reduce(tmp$ilr_obs, rbind))),
+      ilr_obs_mean_dist = map2_dbl(
+        ilr_obs, ilr_obs_mean, 
+        function(obs, mean) {
+          as.numeric(stats::dist(as.numeric(obs - mean), "euclidean")) 
+        }
+      )
+    )
+  
+  return(tmp)
 }
 
 #' ilr_err
 #' helper function for summarise_predictions()
 ilr_err <- function(obs, pred) {
-  #browser()
   
   # Aitchinson distance between obs & point estimate (bias):
   est   <- colMeans(pred) # point-estimate in ILR-space
-  adist <- compositions::norm(obs - est)
+  adist <- as.numeric(stats::dist(as.numeric(obs - est), "euclidean"))
   
   # 95% prediction ellipse coverage:
   d2          <- mahalanobis(obs, colMeans(pred), cov(pred))
@@ -82,7 +96,6 @@ ilr_err <- function(obs, pred) {
 #' evaluate prediction models for simplex-distributed variables
 #' @param ... set of models to evaluate, passed as different arguments
 eval_preds_simplex <- function(...) {
-  #browser()
   preds  <- list(...)
   names(preds) <- stringr::str_split_i(
     as.character(as.list(substitute(list(...)))[-1]),
@@ -106,6 +119,7 @@ val_metrics_simplex <- function(df) {
       .by = c(model, .rep),
       MAD   = mean(adist),       # mean Aitchinson distance
       PECP  = mean(in_ellipse),  # prediction ellipse coverage probability
+      R2    = 1 - (sum(adist^2) / sum(ilr_obs_mean_dist^2)), # R²
       ES    = mean(ES),          # mean energy score
       ES_SE = sd(ES) / sqrt(n()) # se of the energy score
     ) 
