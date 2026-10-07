@@ -29,7 +29,8 @@ mcmc_dx_simplex <- function(df) {
   params <- c("beta",
               "L_Omega", "l_sigma",                   # mvlinreg
               "L_Omega_y", "l_sigma_y",               # mvlinreg_knownSDme
-              "mu_x", "L_Omega_x", "l_sigma_x")
+              "mu_x", "L_Omega_x", "l_sigma_x",
+              "L_Omega_mex", "l_sigma_mex")           # mvlinreg_unknownSDme
   
   # scalar columns belonging to a directly sampled parameter:
   # strip the index part ("beta[1,2]" -> "beta") and match exactly
