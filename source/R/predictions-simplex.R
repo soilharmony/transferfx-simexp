@@ -4,7 +4,6 @@
 #' @param data list of per-dataset Stan data lists (as passed into summarise_predictions())
 #' @param draws_new_obs_long posterior predictive draws for new observations
 compute_crps <- function(data, draws_new_obs_long) {
-  #browser()
   
   # extract the observed reference method values (ILR-space)
   ilr_y_obs <- lapply(data, function(x) 
