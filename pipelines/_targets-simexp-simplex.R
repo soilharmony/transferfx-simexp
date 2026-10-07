@@ -12,6 +12,7 @@ library(crew)
 cmdstanr::cmdstan_model(here("source/stan-simplex/dirichlet.stan"))
 cmdstanr::cmdstan_model(here("source/stan-simplex/mvlinreg.stan"))
 cmdstanr::cmdstan_model(here("source/stan-simplex/mvlinreg_knownSDme.stan"))
+cmdstanr::cmdstan_model(here("source/stan-simplex/mvlinreg_unknownSDme.stan"))
 
 tar_option_set(
   controller = crew_controller_local(workers = 5)
@@ -48,7 +49,8 @@ list(
         # ignore Dirichlet model; takes too long to sample
         #here("source/stan-simplex/dirichlet.stan"),
         here("source/stan-simplex/mvlinreg.stan"),
-        here("source/stan-simplex/mvlinreg_knownSDme.stan")
+        here("source/stan-simplex/mvlinreg_knownSDme.stan"),
+        here("source/stan-simplex/mvlinreg_unknownSDme.stan")
       ),
       data = sim_data_simplex(
         sample_size           = sample_size,
@@ -84,17 +86,24 @@ list(
       summarise_predictions(mcmc_mvlinreg_knownSDme, mcmc_data),
       pattern = map(mcmc_mvlinreg_knownSDme, mcmc_data)
     ),
+    tar_target(
+      preds_mvlinregunknownSDme,
+      summarise_predictions(mcmc_mvlinreg_unknownSDme, mcmc_data),
+      pattern = map(mcmc_mvlinreg_unknownSDme, mcmc_data)
+    ),
     
     # evaluate predictions
     tar_target(
       predeval,
-      eval_preds_simplex(preds_mvlinreg, preds_mvlinregknownSDme)
+      eval_preds_simplex(preds_mvlinreg, preds_mvlinregknownSDme,
+                         preds_mvlinregunknownSDme)
     ),
     
     # paired CRPS model comparison
     tar_target(
       predcompare,
-      compare_models(preds_mvlinreg, preds_mvlinregknownSDme)
+      compare_models(preds_mvlinreg, preds_mvlinregknownSDme,
+                     preds_mvlinregunknownSDme)
     ),
     
     # MCMC-diagnostics
@@ -104,9 +113,13 @@ list(
     tar_target(mcmcdx_mvlinregknownSDme,
                mcmc_dx_simplex(mcmc_mvlinreg_knownSDme),
                pattern = map(mcmc_mvlinreg_knownSDme)),
+    tar_target(mcmcdx_mvlinregunknownSDme,
+               mcmc_dx_simplex(mcmc_mvlinreg_unknownSDme),
+               pattern = map(mcmc_mvlinreg_unknownSDme)),
     tar_target(
       mcmcdx,
-      combine_mcmcdx(mcmcdx_mvlinreg, mcmcdx_mvlinregknownSDme)
+      combine_mcmcdx(mcmcdx_mvlinreg, mcmcdx_mvlinregknownSDme,
+                     mcmcdx_mvlinregunknownSDme)
     )
   ),
   
@@ -125,12 +138,12 @@ list(
     mcmcdx_summary,
     mapped[["mcmcdx"]],
     command = bind_rows(!!!.x, .id = "scenario") %>% tidy_scenario_simplex()
-  )
+  ),
 
   # render a quarto report of the experiment
-  # tar_quarto(
-  #   report_simexp,
-  #   path = here("source/quarto/analysis-simexp-simplex.qmd")
-  # )
+  tar_quarto(
+    report_simexp,
+    path = here("source/quarto/analysis-simexp-simplex.qmd")
+  )
   
 )
