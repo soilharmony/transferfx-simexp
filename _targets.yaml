@@ -1,9 +1,9 @@
 project_simexp_normal:
-  script: pipelines/_targets-simexp-normal.R
-  store: pipelines/store-simexp-normal
+  script: source/pipelines/_targets-simexp-normal.R
+  store: source/pipelines/store-simexp-normal
 project_simexp_gamma:
-  script: pipelines/_targets-simexp-gamma.R
-  store: pipelines/store-simexp-gamma
+  script: source/pipelines/_targets-simexp-gamma.R
+  store: source/pipelines/store-simexp-gamma
 project_simexp_simplex:
-  script: pipelines/_targets-simexp-simplex.R
-  store: pipelines/store-simexp-simplex
+  script: source/pipelines/_targets-simexp-simplex.R
+  store: source/pipelines/store-simexp-simplex
