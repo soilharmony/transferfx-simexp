@@ -136,6 +136,7 @@ data_test <- sim_data_simplex(
   alpha_ilr = .2, beta_ilr = 1.3, ratio_sdmex_sdx = .2
 )
 
+set.seed(123)
 data_test$psd_new %>%
   slice_sample(n = 200) %>%
   pivot_longer_spec(spc) %>%
@@ -145,8 +146,25 @@ data_test$psd_new %>%
   ggplot(aes(`non-reference`, reference)) +
   facet_grid(value ~ particle_size) +
   geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty = 2) +
   scale_x_continuous(labels = scales::percent) +
   scale_y_continuous(labels = scales::percent)
+```
+
+The same dataset of 200 observations in a ternary plot:
+
+```{r}
+set.seed(123)
+data_test$psd_new %>%
+  slice_sample(n = 200) %>%
+  pivot_longer_spec(spc) %>%
+  ggtern(aes(sand, clay, silt, color = method, group = id)) +
+  geom_point() + 
+  geom_line(color = "grey") +
+  facet_wrap(~ value) +
+  theme_arrowlarge() +
+  theme(legend.position = "inside",
+        legend.position.inside = c(.5, .7))
 ```
 
 The calibration dataset (varying sample size $N$) and validation dataset ($N$ = 1000) are always generated according to the same data generating mechanism, with the exception that we also examine scenarios where the SD of the measurement error differs between calibration and validation data:
