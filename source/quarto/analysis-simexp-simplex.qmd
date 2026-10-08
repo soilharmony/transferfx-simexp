@@ -20,7 +20,7 @@ library(here)
 library(ggtern)
 
 # set the _target store library of the project (for interactive use)
-prj_store <- here("pipelines/store-simexp-simplex")
+prj_store <- here("source/pipelines/store-simexp-simplex")
 tar_load(predeval_summary, store = prj_store)
 tar_load(predcompare_summary, store = prj_store)
 tar_load(mcmcdx_summary, store = prj_store)
@@ -256,7 +256,82 @@ $$
 A_i &= ||\hat{\mathbf{y}}_i - \mathbf{y}_{i,\text{obs}}||
 \end{aligned}
 $$
-This is averaged across all observations in the validation dataset to yield the mean Aitchinson distance (MAD = $\frac{1}{N}\sum_{i=1}^NA_i$).
+This is averaged across all observations in the validation dataset to yield the mean Aitchinson distance (MAD = $\frac{1}{N}\sum_{i=1}^NA_i$). 
+In order to have some reference values for the Aitchinson distance: it is infinite between the corners of the ternary plot, it is 6.5 between points near the corners (98-1-1 distributions) and the values below show the distance between the geometric centers of the USDA classes (these distances are larger than the distances we encounter in the simulations).
+
+```{r}
+# Aitchinson distance between the corners = infinite
+
+# points close to the corners
+# reference values Aitchinson distance to get some context
+# x <- matrix(
+#   c(.98, .01, .01,  # ~100% clay
+#     .01, .98, .01,  # ~100% silt
+#     .01, .01, .98), # ~100% sand
+#   byrow = TRUE, nrow = 3
+# )
+
+# distance between near-corners = 6.5
+# compositions::dist(compositions::ilr(x))
+
+# distance between centers of USDA classes
+data("USDA", package = "ggtern")
+
+# Ternary -> Cartesian (equilateral triangle)
+# x = 0.5 * (2*Silt + Clay) / total ; y = (sqrt(3)/2) * Clay / total
+poly_centroid <- function(x, y) {
+  n  <- length(x)
+  x2 <- c(x[-1], x[1])
+  y2 <- c(y[-1], y[1])
+  cr <- x * y2 - x2 * y
+  A  <- sum(cr) / 2
+  c(cx = sum((x + x2) * cr) / (6 * A),
+    cy = sum((y + y2) * cr) / (6 * A))
+}
+
+centers <- USDA %>%
+  group_by(Label) %>%
+  group_modify(~ {
+    d     <- .x
+    total <- d$Clay + d$Silt + d$Sand
+    x     <- 0.5 * (2 * d$Silt + d$Clay) / total
+    y     <- (sqrt(3) / 2) * d$Clay / total
+    cc    <- poly_centroid(x, y)
+
+    # Cartesian -> ternary
+    Clay <- cc["cy"] / (sqrt(3) / 2)
+    Silt <- cc["cx"] - 0.5 * Clay
+    Sand <- 1 - Clay - Silt
+    tibble(Clay = Clay * 100, Silt = Silt * 100, Sand = Sand * 100)
+  }) %>%
+  ungroup()
+
+# ggtern(USDA, aes(Sand, Clay, Silt)) +
+#   geom_polygon(aes(group = Label), fill = NA, colour = "grey40") +
+#   geom_point(data = centers, size = 5)
+
+distmat <- as.matrix( compositions::dist(compositions::ilr(centers)) )
+rownames(distmat) <- colnames(distmat) <- centers$Label
+distmat[upper.tri(distmat)] <- NA_real_
+diag(distmat)               <- NA_real_
+
+as.data.frame(distmat) %>%
+  rownames_to_column(var = "class") %>%
+  pivot_longer(
+    centers$Label, names_to = "other_class", 
+    values_to = "aitch_dist"
+  ) %>%
+  mutate(
+    class = factor(class, centers$Label), 
+    other_class = factor(other_class, centers$Label), 
+  ) %>%
+  ggplot(aes(class, other_class, fill = aitch_dist)) +
+  geom_tile() +
+  scale_fill_continuous(na.value = "white") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "", fill = "Aitchinson distance")
+```
 
 The second metric is the prediction ellipse coverage probability (PECP). 
 Instead of the usual 95% prediction interval, we now construct a 95% prediction ellipse in the ILR-space and check whether the ILR-coordinates of the observed validation sample lie in this ellipse or not.
