@@ -7,3 +7,6 @@ project_simexp_gamma:
 project_simexp_simplex:
   script: source/pipelines/_targets-simexp-simplex.R
   store: source/pipelines/store-simexp-simplex
+project_simexp_leftcens:
+  script: source/pipelines/_targets-simexp-leftcens.R
+  store: source/pipelines/store-simexp-leftcens
