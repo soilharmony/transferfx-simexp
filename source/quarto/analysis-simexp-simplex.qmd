@@ -1,0 +1,651 @@
+---
+title: "Simulation experiment (simplex data)"
+format: 
+  html:
+    embed-resources: true
+toc: true
+execute: 
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(flextable)
+library(targets)
+library(tarchetypes)
+library(here)
+library(ggtern)
+
+# set the _target store library of the project (for interactive use)
+prj_store <- here("source/pipelines/store-simexp-simplex")
+tar_load(predeval_summary, store = prj_store)
+tar_load(predcompare_summary, store = prj_store)
+tar_load(mcmcdx_summary, store = prj_store)
+nrep <- length(unique(predeval_summary$.rep)) 
+```
+
+<br>
+
+## Design of the experiment
+
+This simulation experiment is used to represent compositional soil descriptors like the particle size distribution. 
+The design of the experiment is analogous to the experiment with normally and gamma distributed data, but some alterations were made to accommodate for the compositional structure (constrained to sum to 100%).
+
+We make use of the isometric log-ratio (ILR) transformation between the 3-dimensional simplex ($*$) and the 2-dimensional real space because it is easier to work in the latter. 
+Denote an observation ($i = 1, \dots, N)$ of the tuple of clay, silt, sand as $\mathbf{p}_i^* = (p_{i1}^*, p_{i2}^*, p_{i3}^*)$ (summing to 1; the ordering of components is not of interest as we do not need to interpret model coefficients, we are only interested in making predictions, hence we use the ordering clay-silt-sand throughout). 
+The isometric log-ratio is defined as follows, transforming the 3-dimensional simplex to the 2-dimensional real space with the two real components ($\mathbf{p}$) being orthogonal:
+$$
+\begin{align}
+p_{i1} &= \sqrt{\frac{1}{2}} \log\left(\frac{p_{i1}^*}{p_{i2}^*}\right) \\
+p_{i2} &= \sqrt{\frac{2}{3}} \log\left(\frac{\sqrt{p_{i1}^*p_{i2}^*}}{p_{i3}^*}\right)
+\end{align}
+$$
+
+The original components can be recovered with the inverse operation. 
+
+We simulate data according to the following method (notation: $X$ = non-reference method, $Y$ = reference method). 
+We first simulate a latent (true) value for the non-reference method on the ILR-scale by sampling from a bivariate Gaussian distribution with mean $\mathbf{\mu}$ and (co-)variance matrix $\mathbf{\Sigma}$. 
+These are then translated to latent values of the reference method on the ILR-scale by a linear regression model (each component is subjected to the same $\alpha$ and $\beta$ but this restriction could be relaxed) and some structural noise is added (the gaussian noise is assumed to be independent between the two components and of the same magnitude):
+
+$$
+\begin{align}
+\mathbf{x}_{i,\text{true}} &\sim \mathbf{N}(\boldsymbol\mu, \mathbf{\Sigma}) \\
+\mathbf{y}_{i,\text{true}} &\sim \mathbf{N}(\alpha + \beta\mathbf{x}_{i,\text{true}}, \sigma_y^2\mathbf{I}_2)
+\end{align}
+$$ {#eq-latents}
+
+Next we add measurement error to both latent variables to represent observed values. 
+We use Gaussian additive measurement error on the ILR-scale. 
+We assume that the measurement error is independent between the two components on the ILR-scale within each method.
+For the non-reference method we set the SD of the measurement error to be $\mathbf{\sigma_u}$ and express it as a fraction from the variance of the latent $X$:
+
+$$
+\mathbf{\sigma_u} = \begin{pmatrix} \sigma_{u1} & \sigma_{u2} \end{pmatrix}' = \tau_x \sqrt{\text{tr}(\mathbf{\Sigma})}
+$$
+Small fractions are used because we assume the measurement error to be much smaller than the spread in the population (default $\tau_x$ = .05, but we consider also smaller and larger values).
+The SD for the measurement error in the reference method is taken to be proportional to that of the non-reference method: $\mathbf{\sigma_v} = \tau_{xy}\mathbf{\sigma_u}$ (the default is $\tau_{xy} = 1$ but we will examine other values too). 
+We allow for a correlation (of strength $\rho$) between the measurement errors in corresponding components of both methods (the default is $\rho = 0$ but we will examine other values too).
+
+$$
+\begin{align}
+\mathbf{\Sigma}_{\epsilon} &= 
+\begin{pmatrix} 
+\sigma_{u1}^2 & 0 & \rho\sigma_{u1}\sigma_{v1} & 0 \\
+0 & \sigma_{u2}^2 & 0 & \rho\sigma_{u2}\sigma_{v2} \\
+\rho\sigma_{u1}\sigma_{v1} & 0 & \sigma_{v1}^2 & 0 \\
+0 & \rho\sigma_{u2}\sigma_{v2} & 0 & \sigma_{v2}^2 
+\end{pmatrix}
+\\
+\begin{pmatrix}
+\mathbf{x}_{i,\text{obs}} \\
+\mathbf{y}_{i,\text{obs}}
+\end{pmatrix} &\sim
+\mathbf{N}\left(
+\begin{pmatrix}
+\mathbf{x}_{i,\text{true}} \\
+\mathbf{y}_{i,\text{true}}
+\end{pmatrix},
+\mathbf{\Sigma}_{\epsilon}
+\right)
+\end{align}
+$$
+
+Below we show an example of a simulated dataset of 5 soil samples measured with both methods. We visualize both the latent and observed values on the ternary plot.
+
+```{r}
+source(here("source/R/simulate-data-simplex.R"))
+
+set.seed(123)
+data_test <- sim_data_simplex(
+  alpha_ilr = .2, ratio_sdmex_sdx = .1
+)
+
+spc <- data.frame(
+  .name = c("x_true_clay","x_true_silt","x_true_sand",
+            "y_true_clay","y_true_silt","y_true_sand",
+            "x_obs_clay","x_obs_silt","x_obs_sand",
+            "y_obs_clay","y_obs_silt","y_obs_sand"),
+  .value = rep(c("clay","silt","sand"), 4),
+  value = rep(c("latent (true)","observed"), each = 6),
+  method = rep(rep(c("non-reference","reference"), each = 3), 2)
+)
+
+set.seed(123)
+data_test$psd_new %>%
+  slice_sample(n = 5) %>%
+  pivot_longer_spec(spc) %>%
+  ggtern(aes(sand, clay, silt, color = method, group = id)) +
+  geom_point() + 
+  geom_line(color = "grey") +
+  facet_wrap(~ value) +
+  theme_arrowlarge() +
+  theme(legend.position = "inside",
+        legend.position.inside = c(.5, .7))
+```
+
+Below we show a simulated dataset with 200 samples for each component separately.
+
+```{r}
+source(here("source/R/simulate-data-simplex.R"))
+
+set.seed(123)
+data_test <- sim_data_simplex(
+  alpha_ilr = .2, beta_ilr = 1.3, ratio_sdmex_sdx = .2
+)
+
+set.seed(123)
+data_test$psd_new %>%
+  slice_sample(n = 200) %>%
+  pivot_longer_spec(spc) %>%
+  pivot_longer(c(clay, silt, sand), 
+               names_to = "particle_size", values_to = "pct") %>%
+  pivot_wider(values_from = pct, names_from = method) %>%
+  ggplot(aes(`non-reference`, reference)) +
+  facet_grid(value ~ particle_size) +
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty = 2) +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent)
+```
+
+The same dataset of 200 observations in a ternary plot:
+
+```{r}
+set.seed(123)
+data_test$psd_new %>%
+  slice_sample(n = 200) %>%
+  pivot_longer_spec(spc) %>%
+  ggtern(aes(sand, clay, silt, color = method, group = id)) +
+  geom_point() + 
+  geom_line(color = "grey") +
+  facet_wrap(~ value) +
+  theme_arrowlarge() +
+  theme(legend.position = "inside",
+        legend.position.inside = c(.5, .7))
+```
+
+The calibration dataset (varying sample size $N$) and validation dataset ($N$ = 1000) are always generated according to the same data generating mechanism, with the exception that we also examine scenarios where the SD of the measurement error differs between calibration and validation data:
+
+$$
+\tau_u = \frac{\mathbf{\sigma_{u}}_{\text{, validation}}}{\mathbf{\sigma_{u}}_{\text{, calibration}}} \\
+\tau_v = \frac{\mathbf{\sigma_{v}}_{\text{, validation}}}{\mathbf{\sigma_{v}}_{\text{, calibration}}} \\
+$$
+
+The following values of each parameter are examined. One parameter is varied at a time while the others are kept at the default value (first value indicated). This gives a total of 26 scenario's: each scenario is replicated `r nrep` times.
+
+| Parameter              | Values                                   |
+|------------------------|------------------------------------------|
+|$N$                     |200, 100, 500                             |
+|$\mu_1$[^1]             |0.5                                       |
+|$\mu_2$[^1]             |0.25                                      |
+|$\Sigma_{11}$[^1]       |0.16                                      |
+|$\Sigma_{12}$[^1]       |-0.14                                     |
+|$\Sigma_{22}$[^1]       |1.34                                      |
+|$\alpha$                |0, -0.5, 0.5                              |
+|$\beta$                 |1, 0.7, 1.3                               |
+|$\sigma_y$              |0.1, 0.01, 0.2                            |
+|$\tau_x$                |0.05, 0.01, 0.1, 0.2                      |
+|$\tau_{xy}$             |1, 0.9, 1.1                               |
+|$\rho$                  |0, 0.5, 0.9                               |
+|$\tau_u$, $\tau_v$      |1, 0.8, 1.2, 1.5                          |
+
+: Table: Parameter values for the scenario's of the experiment. The default value is the first in each list.
+
+[^1] These parameters are kept fixed and were obtained from fitting a multivariate normal distribution to ILR-transformed particle size distributions of European soil data (Eurofins data).
+
+<br>
+
+## Description of the models
+
+We fit the following Bayesian models on each dataset. The models are fitted with the `cmdstanr` package inside a `stantargets` pipeline.
+
+### Multivariate linear regression
+
+The following model parameterization is used for the linear regression:
+
+$$
+\begin{aligned}
+\text{priors:} \\
+\boldsymbol\beta &\sim \mathbf{N}(0, 10) \\
+\Omega &\sim \text{LKJcorr}(4) \\
+\tau_d &\sim \text{Cauchy}^+(0, 2.5) \\
+
+\text{likelihood:} \\
+\boldsymbol\mu_i &= \boldsymbol\beta\mathbf{x}_{i,\text{obs}}\\
+\Sigma &= \text{diag}(\tau_d) \times \Omega \times \text{diag}(\tau_d) \\
+\mathbf{y}_{i,\text{obs}} &\sim \mathbf{N}(\boldsymbol\mu_i, \Sigma)
+\end{aligned}
+$$
+
+### Multivariate EIV-model with known measurement error (co-)variance matrix
+
+We model the latent non-reference method values using a multivariate normal. 
+The equations are analogous to the univariate linear EIV-model; also the marginalization trick works for the multivariate case (it's a rather cumbersome notation to write it out in full, is it necessary?). 
+Similar to the model above, the Cauchy and LKJ-priors are used for the variance-covariance matrices. 
+The model assumes we know the variance-covariance matrix of the measurement errors in the ILR-space (for both the calibration and validation data).
+
+### Multivariate EIV-model with unknown measurement error (co-)variance matrix
+
+Same as above, except that we place also a Cauchy and LKJ-prior on the unknown measurement error variance-covariance matrix.
+
+### extra? Dirichlet regression
+
+I tried to fit the Dirichlet regression model but the MCMC sampler is very inefficient and the results in small tests were less good than multivariate normal models. 
+Not surprisingly of course, since the data generating mechanism used the multivariate normal model.
+
+### extra? independent beta-models
+
+Idea for an extra approach: making three separate beta-regression models for each component (no ILR transformation) and post-hoc normalizing the predictions to sum to 100%.
+I don't really find it an appealing approach but I have not yet read a TF that uses a multivariate model for the PSD, all fit separate models. 
+I'm just wondering how to normalize the predictions: if we have for 1 new observation 1000 posterior predictive draws for 3 independent models (clay/silt/sand) we could make 1000^3 combinations and normalize them. Overkill? 
+
+<br>
+
+## Evaluation of the models
+
+We use the following model evaluation metrics in this experiment. 
+
+The first is the Aitchinson distance between the posterior predictive mean (point estimate) and the measured value of the new observation (bias).
+This distance can be calculated as the Euclidean distance in the ILR-space:
+$$
+\begin{aligned}
+\hat{\mathbf{y}}_i &= \frac{1}{K}\sum_{k=1}^K \mathbf{y}_{ik} \ \ (\text{mean of K posterior predictive draws}) \\
+A_i &= ||\hat{\mathbf{y}}_i - \mathbf{y}_{i,\text{obs}}||
+\end{aligned}
+$$
+This is averaged across all observations in the validation dataset to yield the mean Aitchinson distance (MAD = $\frac{1}{N}\sum_{i=1}^NA_i$). 
+In order to have some reference values for the Aitchinson distance: it is infinite between the corners of the ternary plot, it is 6.5 between points near the corners (98-1-1 distributions) and the values below show the distance between the geometric centers of the USDA classes (these distances are larger than the distances we encounter in the simulations).
+
+```{r}
+# Aitchinson distance between the corners = infinite
+
+# points close to the corners
+# reference values Aitchinson distance to get some context
+# x <- matrix(
+#   c(.98, .01, .01,  # ~100% clay
+#     .01, .98, .01,  # ~100% silt
+#     .01, .01, .98), # ~100% sand
+#   byrow = TRUE, nrow = 3
+# )
+
+# distance between near-corners = 6.5
+# compositions::dist(compositions::ilr(x))
+
+# distance between centers of USDA classes
+data("USDA", package = "ggtern")
+
+# Ternary -> Cartesian (equilateral triangle)
+# x = 0.5 * (2*Silt + Clay) / total ; y = (sqrt(3)/2) * Clay / total
+poly_centroid <- function(x, y) {
+  n  <- length(x)
+  x2 <- c(x[-1], x[1])
+  y2 <- c(y[-1], y[1])
+  cr <- x * y2 - x2 * y
+  A  <- sum(cr) / 2
+  c(cx = sum((x + x2) * cr) / (6 * A),
+    cy = sum((y + y2) * cr) / (6 * A))
+}
+
+centers <- USDA %>%
+  group_by(Label) %>%
+  group_modify(~ {
+    d     <- .x
+    total <- d$Clay + d$Silt + d$Sand
+    x     <- 0.5 * (2 * d$Silt + d$Clay) / total
+    y     <- (sqrt(3) / 2) * d$Clay / total
+    cc    <- poly_centroid(x, y)
+
+    # Cartesian -> ternary
+    Clay <- cc["cy"] / (sqrt(3) / 2)
+    Silt <- cc["cx"] - 0.5 * Clay
+    Sand <- 1 - Clay - Silt
+    tibble(Clay = Clay * 100, Silt = Silt * 100, Sand = Sand * 100)
+  }) %>%
+  ungroup()
+
+# ggtern(USDA, aes(Sand, Clay, Silt)) +
+#   geom_polygon(aes(group = Label), fill = NA, colour = "grey40") +
+#   geom_point(data = centers, size = 5)
+
+distmat <- as.matrix( compositions::dist(compositions::ilr(centers)) )
+rownames(distmat) <- colnames(distmat) <- centers$Label
+distmat[upper.tri(distmat)] <- NA_real_
+diag(distmat)               <- NA_real_
+
+as.data.frame(distmat) %>%
+  rownames_to_column(var = "class") %>%
+  pivot_longer(
+    centers$Label, names_to = "other_class", 
+    values_to = "aitch_dist"
+  ) %>%
+  mutate(
+    class = factor(class, centers$Label), 
+    other_class = factor(other_class, centers$Label), 
+  ) %>%
+  ggplot(aes(class, other_class, fill = aitch_dist)) +
+  geom_tile() +
+  scale_fill_continuous(na.value = "white") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "", y = "", fill = "Aitchinson distance")
+```
+
+The second metric is the prediction ellipse coverage probability (PECP). 
+Instead of the usual 95% prediction interval, we now construct a 95% prediction ellipse in the ILR-space and check whether the ILR-coordinates of the observed validation sample lie in this ellipse or not.
+This is done via the Mahalanobis distance $D$; if $D^2 \leq \chi^2_{.95, \nu = 2}$ then the observation falls in the prediction ellipse.
+
+$$
+\begin{aligned}
+\hat{\Sigma}_y &= \text{Cov}(\mathbf{y}_{ik})\\
+D^2 &= (\mathbf{y}_{i,\text{obs}} - \hat{\mathbf{y}}_i)'\hat{\Sigma}_y^{-1} (\mathbf{y}_{i,\text{obs}} - \hat{\mathbf{y}}_i) \\
+\end{aligned}
+$$
+
+The following figure shows an illustration of a prediction for a single new observation using the multivariate linear model (the TF-model was trained on 100 calibration observations). 
+The USDA limits are added for reference.
+The posterior predictive draws could be used to make categorical statements (% of draws in each soil type).
+
+```{r}
+library(cmdstanr)
+mod <- cmdstan_model(here("source/stan-simplex/mvlinreg.stan"))
+fit <- mod$sample(data = data_test, show_messages = F, show_exceptions = F)
+
+# take one of the first rows as example
+example <- data_test$psd_new[5,] %>%
+  select(y_obs_clay, y_obs_silt, y_obs_sand,
+         x_obs_clay, x_obs_silt, x_obs_sand)
+
+draws <- fit$draws(format = "df") %>%
+  select(`ilr_y_obs_new_rep[5,1]`, `ilr_y_obs_new_rep[5,2]`)
+est       <- colMeans(draws)
+err_sigma <- cov(draws)
+L         <- chol(err_sigma) 
+crit      <- sqrt(qchisq(0.95, df = 2))
+theta     <- seq(0, 2*pi, length.out = 200)
+circle    <- cbind(cos(theta), sin(theta))
+ellipse_ilr <- crit * (circle %*% L)
+ellipse_ilr <- sweep(ellipse_ilr, 2, est, "+")
+
+# posterior predictive samples on the simplex:
+pps_simplex <- compositions::ilrInv(draws)
+colnames(pps_simplex) <- c("clay","silt","sand")
+
+ellipse <- compositions::ilrInv(ellipse_ilr)
+colnames(ellipse) <- c("clay","silt","sand")
+
+est_simplex <- compositions::ilrInv(est)
+dim(est_simplex) <- c(1, 3)
+colnames(est_simplex) <- c("clay","silt","sand")
+
+data("USDA", package = "ggtern")
+
+ggtern() +
+  geom_point(data = pps_simplex, aes(sand, clay, silt), alpha = .1) +
+  geom_point(data = est_simplex, aes(sand, clay, silt), color = "yellow") +
+  geom_point(data = ellipse, aes(sand, clay, silt), color = "blue", size = .5) +
+  geom_point(data = example, aes(y_obs_sand, y_obs_clay, y_obs_silt), 
+             color = "red") + 
+  geom_point(data = example, aes(x_obs_sand, x_obs_clay, x_obs_silt), 
+             color = "green") + 
+  theme_arrowlarge() +
+  labs(
+    caption = paste0("Green = observed non-reference method (predictor)\n",
+                     "Red = observed reference method (target)\n",
+                     "Black = posterior predictive samples\n",
+                     "Yellow = posterior point estimate\n",
+                     "Blue = 95% prediction ellipse")
+  ) +
+  geom_polygon(
+    inherit.aes = FALSE, data = USDA,
+    aes(x=Sand, y=Clay, z=Silt, fill = Label), 
+    alpha = .1, color = "black", show.legend = FALSE
+  ) 
+
+```
+
+The third metric is the proportion of explained variance:
+$$
+R^2 = 1 - \frac{\sum_{i=1}^N A_i^2}{\sum_{i=1}^N ||\bar{\mathbf{y}} - \mathbf{y}_{i,\text{obs}}||^2}
+$$
+
+The fourth metric is the Energy Score (ES) which is a multivariate extension of the Continuous Ranked Probability Score (CRPS) which we used in the normal and gamma DGM.
+This metric exploits the complete posterior predictive distribution instead of relying on posterior point estimates.
+
+$$
+\text{ES}_i = \frac{1}{K}\sum_{k=1}^K ||\mathbf{y}_{ik} - \mathbf{y}_{i,\text{obs}}|| - \frac{1}{2K^2}\sum_{k=1}^K\sum_{k'=1}^K ||\mathbf{y}_{ik} - \mathbf{y}_{ik'}||
+$$
+
+The difference in energy scores between all pairs of models are calculated.
+Statistical significance is assessed at the 5% level.
+
+<br>
+
+## Results
+
+The following figures display the results of the simulation experiment. Except for @fig-ratiosdme we hardly see any difference between the performance of the three models, just like in the normal and gamma data generating mechanisms.
+
+### Point estimate predictions
+
+```{r}
+# point-estimate (prediction interval) metrics
+display_results <- function(paramname) {
+  predeval_summary %>% 
+    filter(scenario_param == paramname) %>%
+    pivot_longer(
+      c(MAD, R2, PECP), 
+      names_to = "metric", values_to = "value"
+    ) %>%
+    mutate(
+      metric = factor(metric, c("MAD", "R2", "PECP"),
+                      c("MAD", "R2", "PECP")),
+      model = factor(model, c("mvlinreg", "mvlinregknownSDme",
+                              "mvlinregunknownSDme"),
+                     c("MV-Linear regression", "MV-EIV\n(known Sigma)",
+                       "MV-EIV\n(prior on Sigma)"))
+    ) %>%
+    ggplot(aes(factor(scenario_value), value, colour = model)) +
+    facet_wrap(~ metric, scales = "free_y") +
+    geom_boxplot() +
+    geom_point(position = position_jitterdodge(.1, 0)) +
+    labs(x = "", y = "", color = "Models") +
+    theme_minimal() +
+    theme(strip.text = element_text(face = "bold"),
+          legend.position = "bottom")
+}
+```
+
+```{r}
+#| label: fig-samplesize
+#| fig-cap: "Sample size of the calibration (training) dataset"
+display_results("Nsample") +
+  labs(x = "sample size")
+```
+
+```{r}
+#| label: fig-taux
+#| fig-cap: "Ratio between SD of the measurement error and the sampling SD"
+display_results("Taux") +
+  labs(x = expression(SD[u]/SD[x]))
+```
+
+```{r}
+#| label: fig-tauxy
+#| fig-cap: "Ratio between SDs of the measurement error in y and x"
+display_results("Tauxy") +
+  labs(x = expression(SD[v]/SD[u]))
+```
+
+```{r}
+#| label: fig-corrme
+#| fig-cap: "Correlation between the measurement errors in y and x"
+display_results("CorrME") +
+  labs(x = expression(rho))
+```
+
+```{r}
+#| label: fig-sigmay
+#| fig-cap: "Equation error between the latent measurement methods"
+display_results("SDy") +
+  labs(x = expression(SD[yx]))
+```
+
+```{r}
+#| label: fig-alpha
+#| fig-cap: "Intercept of the linear relation between latent measurement methods (ILR-scale)"
+display_results("Alpha") +
+  labs(x = expression(alpha))
+```
+
+```{r}
+#| label: fig-beta
+#| fig-cap: "Slope of the linear relation between latent measurement methods (ILR-scale)"
+display_results("Beta") +
+  labs(x = expression(beta))
+```
+
+```{r}
+#| label: fig-ratiosdme
+#| fig-cap: "Ratio between SD of the measurement error in the validation vs. calibration dataset"
+display_results("RatioSDme") +
+  labs(x = expression(SD[validation]/SD[calibration]))
+```
+
+
+
+### Distributional metrics
+
+Instead of showing the energy score values and SE's, we focus on the model comparison. 
+The graphs show the number of times each model is selected as the best model for each pairwise comparison and whether the comparison was statistically significant or not (1.96 * SE < or > 0).
+The values on the x-axis are the values from each of the examined scenario parameters.
+The pairwise comparisons are mostly non-significant indicating only marginal differences between the models.
+Only in the scenario's where the calibration and validation data have different measurement error distributions does the model with known $\Sigma$ come out as significantly better most of the time.
+
+```{r}
+# distributional prediction metrics
+display_results <- function(paramname) {
+  predcompare_summary %>% 
+    filter(scenario_param == paramname) %>%
+    mutate(
+      model_a = factor(model_a, 
+                       c("mvlinreg", "mvlinregknownSDme",
+                         "mvlinregunknownSDme"),
+                       c("MV-Linear regression", "MV-EIV\n(known Sigma)",
+                         "MV-EIV\n(prior on Sigma)")),
+      model_b = factor(model_b, 
+                       c("mvlinreg", "mvlinregknownSDme",
+                         "mvlinregunknownSDme"),
+                       c("MV-Linear regression", "MV-EIV\n(known Sigma)",
+                         "MV-EIV\n(prior on Sigma)")),
+      winner = case_when(
+        crps_diff < 0 ~ model_a,
+        crps_diff > 0 ~ model_b,
+      ),
+      significant = case_when(
+        crps_diff - 1.96*se_crps_diff > 0 ~ TRUE,
+        crps_diff + 1.96*se_crps_diff < 0 ~ TRUE,
+        TRUE                              ~ FALSE
+      )
+    ) %>%
+    summarise(
+      .by = c(scenario_value, model_a, model_b, winner, significant), 
+      N = n()
+    ) %>%
+    ggplot(aes(scenario_value, N, fill = winner, alpha = significant)) +
+    facet_grid(model_a ~ model_b) +
+    geom_bar(stat = "identity") + 
+    scale_alpha_manual(values = c(.4, 1)) +
+    labs(x = "", y = "count",  fill = "best model") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+```
+
+```{r}
+#| label: fig-samplesize2
+#| fig-cap: "Sample size of the calibration (training) dataset"
+display_results("Nsample")
+```
+
+```{r, echo=F}
+#| label: fig-taux2
+#| fig-cap: "Ratio between SD of the measurement error and the sampling SD"
+display_results("Taux")
+```
+
+```{r, echo=F}
+#| label: fig-tauxy2
+#| fig-cap: "Ratio between SDs of the measurement error in y and x"
+display_results("Tauxy")
+```
+
+```{r, echo=F}
+#| label: fig-corrme2
+#| fig-cap: "Correlation between the measurement errors in y and x"
+display_results("CorrME")
+```
+
+```{r, echo=F}
+#| label: fig-sigmay2
+#| fig-cap: "Equation error between the latent measurement methods"
+display_results("SDy")
+```
+
+```{r, echo=F}
+#| label: fig-alpha2
+#| fig-cap: "Intercept of the linear relation between latent measurement methods (ILR-scale)"
+display_results("Alpha")
+```
+
+```{r, echo=F}
+#| label: fig-beta2
+#| fig-cap: "Slope of the linear relation between latent measurement methods (ILR-scale)"
+display_results("Beta")
+```
+
+```{r, echo=F}
+#| label: fig-ratiosdme2
+#| fig-cap: "Ratio between SD of the measurement error in the validation vs. calibration dataset"
+display_results("RatioSDme")
+```
+
+
+## Model diagnostics: MCMC $\hat{R}$
+
+The following figures display the $\hat{R}$ statistic of the MCMC for each of the model parameters. 
+The red dashed lines are at 1.00 and 1.01. 
+The boxplots are aggregated across scenario's because the values were similar in each of them. 
+The results are similar as in the normal and gamma simulations: the model with unknown SD of the measurement error is hard to fit; the parameters are non-identifiable from a single observation. 
+Replicates would be needed to use this model.
+
+```{r, echo = F, warning = F}
+#| label: fig-MCMCdx
+#| fig-cap: "R-hat for MCMC diagnostics"
+
+mcmcdx_summary %>%
+  select(.rep, model, param, rhat) %>%
+  mutate(
+    model = factor(
+      model, 
+      c("mvlinreg", "mvlinregknownSDme", "mvlinregunknownSDme"),
+      c("MV-Linear regression", "MV-EIV\n(known Sigma)",
+        "MV-EIV\n(prior on Sigma)")
+    )
+  ) %>%
+  ggplot(aes(rhat, param)) +
+  facet_wrap(~ model, scales = "free_x") +
+  geom_boxplot() +
+  geom_vline(xintercept = c(1.00, 1.01), lty = 2, color = "red") +
+  theme_minimal()
+```
+
+<br>
+
+## Conclusions
+
+...
+
+
+

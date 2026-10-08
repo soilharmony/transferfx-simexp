@@ -1,19 +1,20 @@
-# simulate-data.R
+# simulate-data-normal.R
 
-# sim_data
-sim_data <- function(
-    N = 200,
-    ratio_sdmex_sigmax = .05,
-    ratio_sdmey_sdmex = 1,
-    corr_sdmey_sdmex = 0,
-    tails = "normal",
-    mu_x = 0,
-    sigma_x = 1,
-    alpha = 0,
-    beta = 1,
-    sigma_y_struct = .1,
+# sim_data_normal
+sim_data_normal <- function(
+    sample_size             = 200,
+    ratio_sdmex_sigmax      = .05,
+    ratio_sdmey_sdmex       = 1,
+    corr_sdmey_sdmex        = 0,
+    tails                   = "normal",
+    mu_x                    = 0,
+    sigma_x                 = 1,
+    alpha                   = 0,
+    beta                    = 1,
+    sigma_y_struct          = .1,
     ratio_sdmeval_sdmetrain = 1
 ) {
+  N <- sample_size
   
   # latent predictor
   x_true <- rnorm(N, mu_x, sigma_x)

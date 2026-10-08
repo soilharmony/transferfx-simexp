@@ -62,7 +62,7 @@ archive/*
 source/stan-normal/*.exe
 source/stan-gamma/*.exe
 source/stan-ECEC/*.exe
-source/stan-PSD/*.exe
+source/stan-simplex/*.exe
 
 
 

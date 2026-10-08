@@ -1,0 +1,550 @@
+---
+title: "Simulation experiment (gamma distribution)"
+format: 
+  html:
+    embed-resources: true
+toc: true
+execute: 
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(flextable)
+library(targets)
+library(tarchetypes)
+library(here)
+
+# set the _target store library of the project (for interactive use)
+prj_store <- here("pipelines/store-simexp-gamma")
+tar_load(predeval_summary, store = prj_store)
+tar_load(predcompare_summary, store = prj_store)
+tar_load(mcmcdx_summary, store = prj_store)
+nrep <- length(unique(predeval_summary$.rep)) 
+```
+
+<br>
+
+## Design of the experiment
+
+This simulation experiment is used to represent gamma distributed soil descriptors (this distribution is probably well suited for strictly positive and skewed soil descriptors). 
+The design of the experiment is analogous to the experiment with normally distributed data, but some alterations were made to accommodate strictly postive variables (eg. ECEC, bulk density, ...).
+
+We simulate data according to the following method (notation: $X$ = non-reference method, $Y$ = reference method). 
+We first simulate a latent (true) value for the non-reference method using a Gamma distribution with shape parameter $\alpha$ and rate parameter $\beta$. 
+The Gamma distribution parameters are related to the mean and coefficient of variation ($CV = \sigma/\mu$) of $X$ and we specify those to create a scenario:
+
+$$
+\begin{align}
+\alpha &= CV_X^{-2} \\
+\beta &=  \frac{CV_X^{-2}}{\mu_X} \\
+X_{\mathrm{true}} &\sim \mathcal{G}(\alpha, \beta)
+\end{align}
+$$
+
+We then use this value to simulate a value for the latent reference method $Y$, assuming a linear relation between both methods on the log-scale and some structural noise that is not due to measurement error (equation error). 
+This structural noise needs to be multiplicative to avoid negative values; we sample $Y$ therefore from a Gamma distribution with a shape parameter reflecting the residual coefficient of variation (conditional on $X$; $CV_{Y|X}$):
+
+$$
+\begin{align}
+\mu_Y &= \exp\left(\gamma_0 + \gamma_1\log(X_{\mathrm{true}})\right) \\
+Y_{\mathrm{true}} &\sim \mathcal{G}\left(CV_{Y|X}^{-2}, \frac{CV_{Y|X}^{-2}}{\mu_Y}\right)
+\end{align}
+$$
+
+We then add measurement noise to both methods (resulting from both field and lab measurement processes).
+Again, the noise is multiplicative ($X_{\mathrm{obs}} = X_{\mathrm{true}}\epsilon_u$, $Y_{\mathrm{obs}} = Y_{\mathrm{true}}\epsilon_v$) to avoid negative values and we take Gamma-distributed noises with expected values 1 (unbiased noise). 
+Just like in the gaussian case, the measurement noise magnitudes are expressed as fractions of the $CV$ of the latent $X$:
+
+$$
+\begin{aligned}
+CV_{\epsilon_u} &= \tau_xCV_X \\
+CV_{\epsilon_v} &= \tau_{xy}CV_{\epsilon_u}
+\end{aligned}
+$$
+
+We allow for correlated measurement noise between both methods using a Gaussian copula; we start by sampling a bivariate variable $Z$ with zero mean, unit variance and correlation coefficient $\rho$, this variable is then transformed to the unit-interval by means of the standard-normal CDF $\Phi_\mathcal{N}$ and then transformed to a Gamma-distributed measurement error by means of the Gamma quantile function $\Phi_\mathcal{G}^{-1}$:
+
+$$
+\begin{align}
+\begin{pmatrix} Z_1\\ Z_2 \end{pmatrix} 
+&\sim \mathcal{N}
+\left(
+\begin{pmatrix} 0\\ 0 \end{pmatrix},
+\begin{pmatrix} 1 & \rho \\ \rho & 1 \end{pmatrix}
+\right) \\
+U &= \Phi_\mathcal{N}(Z_1) \\
+V &= \Phi_\mathcal{N}(Z_2) \\
+\epsilon_u &= \Phi_\mathcal{G}^{-1}(U; \alpha=\beta=CV_{\epsilon_u}^{-2}) \\
+\epsilon_v &= \Phi_\mathcal{G}^{-1}(V; \alpha=\beta=CV_{\epsilon_v}^{-2})
+\end{align}
+$$
+
+The calibration dataset (varying sample size $N$) and validation dataset ($N$ = 1000) are always generated according to the same data generating mechanism, with the exception that we also examine scenarios where the CV of the measurement error differs between calibration and validation data:
+
+$$
+\tau_u = \frac{\text{CV}_{\epsilon_{u,\text{validation}}}}{\text{CV}_{\epsilon_{u,\text{calibration}}}} \\
+\tau_v = \frac{\text{CV}_{\epsilon_{v,\text{validation}}}}{\text{CV}_{\epsilon_{v,\text{calibration}}}}
+$$
+
+The following values of each parameter are examined. One parameter is varied at a time while the others are kept at the default value (first value indicated). This gives a total of 27 scenario's: each scenario is replicated `r nrep` times.
+
+| Parameter              | Values                                   |
+|------------------------|------------------------------------------|
+|$N$                     |200, 100, 500                             |
+|$\mu_x$                 |1                                         |
+|$\text{CV}_X$           |.5                                        |
+|$\alpha$                |0, -0.5, 0.5                              |
+|$\beta$                 |1, 0.7, 0.3                               |
+|$\text{CV}_{Y|X}$       |0.05, 0.01, 0.1, 0.2                      |
+|$\tau_x$                |0.05, 0.01, 0.1, 0.2                      |
+|$\tau_{xy}$             |1, 0.9, 1.1                               |
+|$\rho$                  |0, 0.5, 0.9                               |
+|$\tau_u$, $\tau_v$      |1, 0.8, 1.2, 1.5                          |
+
+: Table: Parameter values for the scenario's of the experiment. The default value is the first in each list.
+
+<br>
+
+## Description of the models
+
+We fit the following 5 Bayesian models on each dataset. The models are fitted with the `cmdstanr` package inside a `stantargets` pipeline.
+
+### Linear regression
+
+We ignore the fact that the outcome variable is a strictly positive variable and use simple linear regression. We include this model as a naive method and look at the proportion of samples for which the predicted value is negative or the prediction interval contains negative values. Priors are similar to the gaussian experiments:
+
+$$
+\begin{aligned}
+\beta_0 &\sim \mathcal{N}(0, 1^2) \\
+\beta_1 &\sim \mathcal{N}^+(1, 0.5^2) \\
+\sigma_y &\sim \log\mathcal{N}(0, 0.5) \\
+y_{\text{obs},i} &\sim \mathcal{N}(\beta_0 + \beta_1x_{\text{obs},i}, \sigma_y^2)
+\end{aligned}
+$$
+
+### Linear regression using log-transformed values
+
+Same model as above but on log-transformed variables. 
+
+$$
+\begin{aligned}
+\beta_0 &\sim \mathcal{N}(0, 1^2) \\
+\beta_1 &\sim \mathcal{N}^+(1, 0.5^2) \\
+\sigma_y &\sim \log\mathcal{N}(0, 0.5) \\
+\mu_i &= \beta_0 + \beta_1\log(x_{\text{obs},i}) \\
+\log(y_{\text{obs},i}) &\sim \mathcal{N}(\mu_i, \sigma_y^2)
+\end{aligned}
+$$
+
+### Gamma GLM
+
+We don't transform the outcome variable but assume it is Gamma-distributed with shape parameter $\alpha$ and rate $\alpha/\mu_i$, the log expected value follows a linear function of the log of the non-reference method:
+
+$$
+\begin{aligned}
+\beta_0 &\sim \mathcal{N}(0, 1^2) \\
+\beta_1 &\sim \mathcal{N}^+(1, 0.5^2) \\
+\alpha &\sim \log\mathcal{N}(0, 1) \\
+\mu_i &= \exp(\beta_0 + \beta_1 \log(x_{obs,i})) \\
+y_{\text{obs},i} &\sim \mathcal{G}(\alpha, \alpha/\mu_i)
+\end{aligned}
+$$
+
+### Gamma EIV-model with known CV of the measurement error
+
+We take the measurement error in the non-reference method into account. In this model we assume we have knowledge on the exact value of the CV of the measurement error ($CV_{\epsilon_X}$). The model and the priors are as follows:
+
+$$
+\begin{aligned}
+\mathrm{priors}\\
+\beta_0 &\sim \mathcal{N}(0, 1^2) \\
+\beta_1 &\sim \mathcal{N}^+(1, 0.5^2) \\
+\alpha &\sim \log\mathcal{N}(0, 1) \\
+\mu_X &\sim \log\mathcal{N}(0, 1) \\
+CV_X &\sim \log\mathcal{N}(0, 1) \\
+
+\mathrm{latent} \\
+x_{true,i} &\sim \mathcal{G}(CV_X^{-2}, CV_X^{-2}/\mu_X)\\
+x_{\text{obs},i} &\sim \mathcal{G}(CV_{\epsilon_X}^{-2}, CV_{\epsilon_X}^{-2}/x_{true,i}) \\
+
+\mathrm{regression}\\
+\mu_i &= \exp(\beta_0 + \beta_1 \log(x_{true,i})) \\
+y_{\text{obs},i} &\sim \mathcal{G}(\alpha, \alpha/\mu_i)
+
+\end{aligned}
+$$
+
+### Gamma EIV-model with unknown CV of the measurement error
+
+The only difference with the above model is that we don't have exact knowledge on the CV of the measurement error but we specify a prior distribution for it (we actually specify a prior for the gamma shape parameter directly):
+
+$$
+CV_{\epsilon_X}^{-2} \sim \log\mathcal{N}(0, 1)
+$$
+
+<br>
+
+### Priors:
+
+The following figure shows the priors used in the different models:
+
+```{r}
+#| label: priors
+df <- data.frame(x = seq(- 4, 4, 0.01))
+ggplot(df, aes(x)) +
+  geom_function(fun = dnorm, args = list(mean = 0, sd = 1), 
+                aes(color = "beta_0"), n = 1000, lwd = 1) +
+  geom_function(fun = truncnorm::dtruncnorm,
+                args = list(a = 0, mean = 1, sd = .5), 
+                aes(color = "beta_1"), n = 1000, lwd = 1) +
+  geom_function(fun = dlnorm, args = list(meanlog = 0, sdlog = 1), 
+                aes(color = "mu_x, cv_x, alpha, cv_eps_x^{-2}"), n = 1000, lwd = 1) + 
+  geom_function(fun = dlnorm, args = list(meanlog = 0, sdlog = .5), 
+                aes(color = "sigma_y"), n = 1000, lwd = 1) + 
+  scale_x_continuous(breaks = seq(-4, 4, 1)) +
+  theme_minimal() +
+  labs(color = "parameter(s)", x = "", y = "prior PDF")
+```
+
+<br>
+
+## Evaluation of the models
+
+The same metrics as in the normal DGM are used. Two additional metrics are evaluated to check that the models respected the strict positive nature of the outcome variable:
+
+- PNEG: proportion of point estimates (posterior means) that are negative.
+
+- PNEGll: proportion of 95% prediction interval lower limits that are negative.
+
+<br>
+
+## Results
+
+The following figures display the results of the simulation experiment.
+
+### Point estimate predictions
+
+```{r}
+# point-estimate (prediction interval) metrics
+display_results <- function(paramname) {
+  predeval_summary %>% 
+    filter(scenario_param == paramname) %>%
+    pivot_longer(
+      c(PICP, MAE, MPE, RMSE, R2, SDPE), 
+      names_to = "metric", values_to = "value"
+    ) %>%
+    mutate(
+      metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP"),
+                      c("MPE","MAE","RMSE","R²","SDPE","PICP")),
+      model = factor(model, c("linreg", "linreglogtrafo", "gammareg",
+                              "gammaregeivknowncvmex", 
+                              "gammaregeivunknowncvmex"),
+                     c("Linear regression","Log-transformed\nlinear regression",
+                       "Gamma GLM", "Gamma EIV\n(known CV)",
+                       "Gamma EIV\n(prior on CV)"))
+    ) %>%
+    ggplot(aes(factor(scenario_value), value, colour = model)) +
+    facet_wrap(~ metric, scales = "free_y") +
+    geom_boxplot() +
+    geom_point(position = position_jitterdodge(.1, 0)) +
+    labs(x = "", y = "", color = "Models") +
+    theme_minimal() +
+    theme(strip.text = element_text(face = "bold"),
+          legend.position = "bottom")
+}
+```
+
+```{r}
+#| label: fig-samplesize
+#| fig-cap: "Sample size of the calibration (training) dataset"
+display_results("Nsample") +
+  labs(x = "sample size")
+```
+
+```{r}
+#| label: fig-taux
+#| fig-cap: "Ratio between CV of the measurement error and the sampling CV"
+display_results("Taux") +
+  labs(x = expression(CV[u]/CV[x]))
+```
+
+```{r}
+#| label: fig-tauxy
+#| fig-cap: "Ratio between CVs of the measurement error in y and x"
+display_results("Tauxy") +
+  labs(x = expression(CV[v]/CV[u]))
+```
+
+```{r}
+#| label: fig-corrme
+#| fig-cap: "Correlation between the measurement errors in y and x"
+display_results("CorrME") +
+  labs(x = expression(rho))
+```
+
+```{r}
+#| label: fig-sigmay
+#| fig-cap: "Equation error between the latent measurement methods"
+display_results("CVy") +
+  labs(x = expression(CV[yx]))
+```
+
+```{r}
+#| label: fig-alpha
+#| fig-cap: "Intercept of the linear relation between latent measurement methods (log-scale)"
+display_results("Alpha") +
+  labs(x = expression(alpha))
+```
+
+```{r}
+#| label: fig-beta
+#| fig-cap: "Slope of the linear relation between latent measurement methods (log-scale)"
+display_results("Beta") +
+  labs(x = expression(beta))
+```
+
+```{r}
+#| label: fig-ratiosdme
+#| fig-cap: "Ratio between CV of the measurement error in the validation vs. calibration dataset"
+display_results("RatioCVme") +
+  labs(x = expression(CV[uv]/CV[uc]))
+```
+
+```{r}
+#| label: fig-RMSEcircle
+#| fig-cap: "MPE vs. SDPE: all points on the circles have the same RMSE (MSE² = bias² + variance). Results are aggregated over all scenario's."
+
+predeval_summary %>%
+  mutate(
+    model = factor(model, c("linreg", "linreglogtrafo", "gammareg",
+                              "gammaregeivknowncvmex", 
+                              "gammaregeivunknowncvmex"),
+                     c("Linear regression","Log-transformed\nlinear regression",
+                       "Gamma GLM", "Gamma EIV\n(known CV)",
+                       "Gamma EIV\n(prior on CV)"))
+  ) %>%
+  ggplot(aes(SDPE, MPE, color = model)) +
+  geom_point(alpha = .3) +
+  ggforce::geom_circle(inherit.aes = F, aes(x0=0, y0=0, r=.05)) +
+  ggforce::geom_circle(inherit.aes = F, aes(x0=0, y0=0, r=.10)) +
+  ggforce::geom_circle(inherit.aes = F, aes(x0=0, y0=0, r=.20)) +
+  coord_fixed(xlim = c(0, NA),
+              ylim = c(1.1*min(predeval_summary$MPE),
+                       1.1*max(predeval_summary$MPE))) +
+  geom_vline(xintercept = 0, lty = 2) +
+  geom_hline(yintercept = 0, lty = 2) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+#| label: tbl-pneg
+#| tbl-cap: "Zero number of negative point estimates and lower prediction limits for all but the linear regression model"
+
+predeval_summary %>%
+  filter(model != "linreg") %>%
+  select(model, PNEG, PNEGll) %>%
+  summarise(
+    .by = model, 
+    `# point estimate > 0` = sum(PNEG > 0),
+    `# prediction interval > 0` = sum(PNEGll > 0)
+  ) %>%
+  knitr::kable()
+```
+
+```{r}
+#| label: fig-pneg
+#| fig-cap: "Proportion of replicates with negative values in the linear regression model."
+
+predeval_summary %>%
+  filter(model == "linreg") %>%
+  pivot_longer(
+    c(PNEG, PNEGll), 
+    names_to = "metric", values_to = "value"
+  ) %>% 
+  mutate(metric = factor(metric, c("PNEG","PNEGll"))) %>%
+  ggplot(aes(x = metric, y = 100*(value+0.0001))) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(y = "% replicates with negative values") +
+  theme_minimal()
+```
+
+### Distributional metrics
+
+The figures below show only CRPS. We verified that outcomes based on ELPD model comparison were very similar.
+Instead of showing the CRPS values and SE's, we focus on the model comparison. 
+The graphs show the number of times each model is selected as the best model for each pairwise comparison and whether the comparison was statistically significant or not (1.96 * SE < or > 0).
+The values on the x-axis are the values from each of the examined scenario parameters.
+The linear regression is significantly worse than all other models across scenario's but the pairwise comparisons between the other models is not very clear.
+
+```{r}
+# distributional prediction metrics
+display_results2 <- function(paramname) {
+  spc <- data.frame(
+    .name  = c("elpd_diff", "se_elpd_diff", "crps_diff", "se_crps_diff"),
+    .value = c("estimate", "se", "estimate", "se"),
+    metric = c("elpd","elpd","crps","crps")
+  )
+  predcompare_summary %>% 
+    filter(scenario_param == paramname) %>%
+    mutate(comparison = paste0(model_a, " - ", model_b)) %>%
+    pivot_longer_spec(spc) %>%
+    ggplot(aes(factor(scenario_value), estimate, colour = comparison,
+               ymin = estimate - 1.96*se, ymax = estimate + 1.96*se)) +
+    facet_wrap(~ metric, scales = "free_y") +
+    geom_point(position = position_jitter(.2, seed = 0)) +
+    geom_errorbar(width = 0, position = position_jitter(.2, seed = 0)) +
+    geom_hline(yintercept = 0, lty = 2) +
+    labs(x = "", y = paste0("delta (95% CI)"), 
+         color = "Model comparison") +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+}
+
+# alternative visualization
+display_results3 <- function(paramname) {
+  spc <- data.frame(
+    .name  = c("elpd_diff", "se_elpd_diff", "crps_diff", "se_crps_diff"),
+    .value = c("estimate", "se", "estimate", "se"),
+    metric = c("elpd","elpd","crps","crps")
+  )
+  predcompare_summary %>% 
+    filter(scenario_param == paramname) %>%
+    pivot_longer_spec(spc) %>%
+    filter(
+      # focus only on CRPS, anyway very strongly correlated with ELPD
+      metric == "crps" 
+    ) %>%
+    mutate(
+      model_a = factor(model_a, c("linreg", "linreglogtrafo", "gammareg",
+                              "gammaregeivknowncvmex", 
+                              "gammaregeivunknowncvmex"),
+                     c("Linear regression","Log-transformed\nlinear regression",
+                       "Gamma GLM", "Gamma EIV\n(known CV)",
+                       "Gamma EIV\n(prior on CV)")),
+      model_b = factor(model_b, c("linreg", "linreglogtrafo", "gammareg",
+                              "gammaregeivknowncvmex", 
+                              "gammaregeivunknowncvmex"),
+                     c("Linear regression","Log-transformed\nlinear regression",
+                       "Gamma GLM", "Gamma EIV\n(known CV)",
+                       "Gamma EIV\n(prior on CV)")),
+      winner = case_when(
+        estimate > 0 ~ model_a,
+        estimate < 0 ~ model_b,
+      ),
+      significant = case_when(
+        estimate - 1.96*se > 0 ~ TRUE,
+        estimate + 1.96*se < 0 ~ TRUE,
+        TRUE                   ~ FALSE
+      )
+    ) %>%
+    summarise(
+      .by = c(scenario_value, model_a, model_b, winner, significant), 
+      N = n()
+    ) %>%
+    ggplot(aes(scenario_value, N, fill = winner, alpha = significant)) +
+    facet_grid(model_a ~ model_b) +
+    geom_bar(stat = "identity") + 
+    scale_alpha_manual(values = c(.4, 1)) +
+    labs(x = "", y = "count",  fill = "best model") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+```
+
+```{r}
+#| label: fig-samplesize2
+#| fig-cap: "Sample size of the calibration (training) dataset"
+display_results3("Nsample")
+```
+
+```{r, echo=F}
+#| label: fig-taux2
+#| fig-cap: "Ratio between CV of the measurement error and the sampling CV"
+display_results3("Taux")
+```
+
+```{r, echo=F}
+#| label: fig-tauxy2
+#| fig-cap: "Ratio between CVs of the measurement error in y and x"
+display_results3("Tauxy")
+```
+
+```{r, echo=F}
+#| label: fig-corrme2
+#| fig-cap: "Correlation between the measurement errors in y and x"
+display_results3("CorrME")
+```
+
+```{r, echo=F}
+#| label: fig-sigmay2
+#| fig-cap: "Equation error between the latent measurement methods"
+display_results3("CVy")
+```
+
+```{r, echo=F}
+#| label: fig-alpha2
+#| fig-cap: "Intercept of the linear relation between latent measurement methods (log-scale)"
+display_results3("Alpha")
+```
+
+```{r, echo=F}
+#| label: fig-beta2
+#| fig-cap: "Slope of the linear relation between latent measurement methods (log-scale)"
+display_results3("Beta")
+```
+
+```{r, echo=F}
+#| label: fig-ratiosdme2
+#| fig-cap: "Ratio between CV of the measurement error in the validation vs. calibration dataset"
+display_results3("RatioCVme")
+```
+
+
+## Model diagnostics: MCMC $\hat{R}$
+
+The following figures display the $\hat{R}$ statistic of the MCMC for each of the model parameters. 
+The red dashed lines are at 1.00 and 1.01. 
+The boxplots are aggregated across scenario's because the values were similar in each of them. 
+All models are mixing good except the model with unknown CV of the measurement error which - despite the strong priors - did not mix well. 
+Because of the single replicate the parameters of this model are not identifiable which was also seen in the normal DGM but is exacerbated here.
+
+```{r, echo = F, warning = F}
+#| label: fig-MCMCdx
+#| fig-cap: "R-hat for MCMC diagnostics"
+mcmcdx_summary %>%
+  select(
+    c(.rep, model, beta0, beta1, sigma, 
+      shape, mu_x, cv_x, shape_mex, shape_x)
+  ) %>%
+  pivot_longer(-c(.rep, model), 
+               names_to = "parameter", values_to = "Rhat") %>%
+  filter(!is.na(Rhat)) %>%
+  mutate(
+    model = factor(model, c("linreg", "linreglogtrafo", "gammareg",
+                              "gammaregeivknowncvmex", 
+                              "gammaregeivunknowncvmex"),
+                     c("Linear regression","Log-transformed\nlinear regression",
+                       "Gamma GLM", "Gamma EIV\n(known CV)",
+                       "Gamma EIV\n(prior on CV)"))
+  ) %>%
+  ggplot(aes(Rhat, parameter)) +
+  facet_wrap(~ model, scales = "free_x") +
+  geom_boxplot() +
+  geom_vline(xintercept = c(1.00, 1.01), lty = 2, color = "red") +
+  theme_minimal()
+```
+
+<br>
+
+## Conclusions
+
+...
+
+
+

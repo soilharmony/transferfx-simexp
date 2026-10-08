@@ -1,4 +1,6 @@
 // gamma EIV-regression model with known CV of the measurement error
+// there can be a different CV for the measurement error in the training and
+// validation data and we assume we know both
 
 data {
   int<lower=1> N;            // number of observations
@@ -8,10 +10,7 @@ data {
   // --- prediction for new x_obs ---
   int<lower=0> N_new;               // number of new observations to predict
   vector<lower=0>[N_new] x_obs_new; // their observed (error-prone) x values
-}
-
-transformed data {
-  // not needed
+  real<lower=0> cv_mex_val;         // known CV of the measurement error
 }
 
 parameters {
@@ -41,6 +40,9 @@ transformed parameters {
   // regression layer for new observations
   vector[N_new] mu_new;
   mu_new = exp(beta0 + beta1 * log(x_true_new));
+  // measurement error in the validation data: shape of the gamma
+  real<lower=0> shape_mex_new;
+  shape_mex_new = inv_square(cv_mex_val);
 }
 
 model {
@@ -59,7 +61,7 @@ model {
   // --- prediction rows ---
   if (N_new > 0) {
     x_true_new ~ gamma(shape_x, rate_x);
-    x_obs_new  ~ gamma(shape_mex, shape_mex ./ x_true_new);
+    x_obs_new  ~ gamma(shape_mex_new, shape_mex_new ./ x_true_new);
   }
 }
 
