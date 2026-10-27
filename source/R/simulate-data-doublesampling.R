@@ -103,31 +103,32 @@ sim_data_doublesampling <- function(
   )
   
   #### (4) same for a validation dataset ####
-  N_val        <- 1e3
-  latent_x_val <- MASS::mvrnorm(N_val, rep(mu_x, 2), var_latent) |> 
-    as.data.frame()
-  latent_y_val    <- beta0 + beta1 * latent_x_val
-  err_field_val   <- MASS::mvrnorm(N_val, rep(0, 2), varme_field)
-  obs_field_x_val <- latent_x_val + err_field_val
-  obs_field_y_val <- latent_y_val + err_field_val
-  err_lab_val     <- MASS::mvrnorm(N_val, rep(0, 2), varme_lab)
-  obs_lab_x_val   <- obs_field_x_val + err_lab_val
-  obs_lab_y_val   <- obs_field_y_val + err_lab_val
-  latent_val <- data.frame(
-    nonref_protocol2 = latent_x_val[, 2], 
-    ref_protocol1    = latent_y_val[, 1]
-  )
-  observed_val <- data.frame(
-    nonref_protocol2 = obs_lab_x_val[, 2], 
-    ref_protocol1    = obs_lab_y_val[, 1]
-  )
+  # N_val        <- 1e3
+  # latent_x_val <- MASS::mvrnorm(N_val, rep(mu_x, 2), var_latent) |> 
+  #   as.data.frame()
+  # latent_y_val    <- beta0 + beta1 * latent_x_val
+  # err_field_val   <- MASS::mvrnorm(N_val, rep(0, 2), varme_field)
+  # obs_field_x_val <- latent_x_val + err_field_val
+  # obs_field_y_val <- latent_y_val + err_field_val
+  # err_lab_val     <- MASS::mvrnorm(N_val, rep(0, 2), varme_lab)
+  # obs_lab_x_val   <- obs_field_x_val + err_lab_val
+  # obs_lab_y_val   <- obs_field_y_val + err_lab_val
+  # latent_val <- data.frame(
+  #   nonref_protocol2 = latent_x_val[, 2], 
+  #   ref_protocol1    = latent_y_val[, 1]
+  # )
+  # observed_val <- data.frame(
+  #   nonref_protocol2 = obs_lab_x_val[, 2], 
+  #   ref_protocol1    = obs_lab_y_val[, 1]
+  # )
   
-  out <- list(
-    latent_cal   = latent, 
-    observed_cal = observed, 
-    latent_val   = latent_val, 
-    observed_val = observed_val
-  )
-  return(out)
+  # out <- list(
+  #   latent_cal   = latent, 
+  #   observed_cal = observed, 
+  #   latent_val   = latent_val, 
+  #   observed_val = observed_val
+  # )
+
+  return(observed)
 }
 
