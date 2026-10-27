@@ -1,0 +1,71 @@
+---
+title: "Interpretation of double-sampling"
+subtitle: "Consequences for TF"
+format: 
+  html:
+    embed-resources: true
+---
+
+With the new interpretation of double sampling, we cannot disentangle the field protocol from the lab protocol variability anymore.
+
+How do we adapt the simulations to the new reality?
+
+We should then make the measurement error have two components
+
+
+## field component 
+
+If the field protocol is different too, we need to adjust for that too. 
+
+Let's say point values of the soil descriptor - values at point locations the size of the sampling equipment, eg. 1 cm² - have a variance in the population (area $A$) of $\sigma^2(p, A)$. 
+
+Cmon defines a location (support area) as a rectangular area of 10 m $\times$ 10 m around a certain point ($a_{\text{cmon}} = 100$ m²). 
+Cmon takes 16 sub-samples in this area to estimate an average of the soil descriptor in this area.
+
+LUCAS defines a location (support area) as a circular area of radius 2 m ($a_{\text{LUCAS}}$ = 4$\pi$ m²). LUCAS takes 5 sub-samples in this area to estimate an average of the soil descriptor in this area.
+
+The variance of the average per location in the population, $\sigma^2(a, A)$, decreases with size of the area of the location: 
+as $a$ -> $A$, $\sigma^2(a, A)$ -> 0.
+
+The variance of the point values within a location, $\sigma^2(p, a)$, increases with size of the area of the location: 
+as $a$ -> $A$, $\sigma^2(p, a)$ -> $\sigma^2(p, A)$.
+
+Krige's relation says the total remains constant:
+$$
+\sigma^2(p, A) = \sigma^2(a, A) + \sigma^2(p, a)
+$$
+
+Assuming that variance of the average per location is proportional to area:
+$$
+\sigma^2(a, A) \propto a^{-\alpha}
+$$
+($\alpha$ = scaling exponent (0 < $\alpha$ < 1) defines spatial autocorrelation)
+
+we can see that the variances of the location are related to each other:
+$$
+\sigma^2_{\text{cmon}}(a, A) = \sigma^2_{\text{LUCAS}}(a, A) \left(\frac{a_{\text{LUCAS}}}{a_{\text{cmon}}}\right)^{\alpha}
+$$
+
+the CMON area is $\pm$ 8 times larger than LUCAS, so for a value of $\alpha$ = .5, this would mean 
+$$
+\sigma^2_{\text{cmon}}(a, A) = 0.35 \cdot \sigma^2_{\text{LUCAS}}(a, A) \\
+
+\sigma^2_{\text{cmon}}(p, a) = \sigma^2(p, A) - \sigma^2_{\text{cmon}}(a, A)
+$$
+
+To translate the above to a simulation study, we need as parameters:
+
+- $\sigma^2(p, A)$
+- $\alpha$ spatial autocorrelation
+- sample support area per field protocol
+- number of sub-samples per field protocol
+
+With oblique soil sampling we are effectively mixing soils from point values together, making things more complicated. (ignore that for now)
+
+
+
+## lab component
+
+same as we were doing before?
+
+
