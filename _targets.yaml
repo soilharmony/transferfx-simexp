@@ -10,3 +10,6 @@ project_simexp_simplex:
 project_simexp_leftcens:
   script: source/pipelines/_targets-simexp-leftcens.R
   store: source/pipelines/store-simexp-leftcens
+project_simexp_doublesampling:
+  script: source/pipelines/_targets-simexp-doublesampling.R
+  store: source/pipelines/store-simexp-doublesampling

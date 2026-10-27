@@ -1,4 +1,4 @@
-# simulate-data-normal-doublesampling.R
+# simulate-data-doublesampling.R
 
 # new interpretation of double sampling strategy
 # instead of working with split samples, they will work with two samples
@@ -7,8 +7,8 @@
 # field protocol 1 (P1) + reference lab method (Y)
 # field protocol 2 (P2) + non-reference lab method (X)
 
-# sim_data_normal_ds
-sim_data_normal_ds <- function(
+# sim_data_doublesampling
+sim_data_doublesampling <- function(
     # number of locations (supports) to be double-sampled
     sample_size = 200,
     
@@ -19,7 +19,7 @@ sim_data_normal_ds <- function(
     ratio_area1_area2 = 1,   # ratio of support area's (area1 / area2)
     n_subsamples      = 5,   # number of sub-samples within the support (P1)
     ratio_n1_n2       = 1,   # ratio of number of sub-samples (n1 / n2)
-    spatautocor       = .5,  # spatial autocorrelation
+    spatautocor       = .1,  # spatial autocorrelation
     corr_latent       = .99, # correlation between latent averages of supports
                              # < 1 because supports not 100% overlapping
     corr_mefield      = 0,   # correlation field measurement err. 
@@ -30,13 +30,10 @@ sim_data_normal_ds <- function(
     beta1                 = 1,   # transfer-function slope
     ratio_labmex_fieldmex = .05, # ratio of SD measurement err. lab / field
     ratio_labmey_labmex   = 1,   # ratio of SD lab measurement err. y / x
-    corr_melab            = 0,   # correlation lab measurement err.
+    corr_melab            = 0    # correlation lab measurement err.
                                  # (eg. shared pre-processing procedure) 
                                  # still necessary ????????
                                  # only correlated for split samples?
-    
-    # ratio between SD of measurement error between calibration and validation
-    ratio_sdmeval_sdmetrain = 1
 ) {
   N <- sample_size
   
@@ -96,19 +93,41 @@ sim_data_normal_ds <- function(
   
   
   ##### (3) mix field protocol & lab method #####
-  latent   <- cbind(latent_x[, 2], latent_y[, 1])
-  observed <- cbind(obs_lab_x[, 2], obs_lab_y[, 1])
-  
-  list_stan <- list(
-    latent_x    = data.frame(latent_x),
-    latent_y    = data.frame(latent_y),
-    obs_field_x = data.frame(obs_field_x),
-    obs_field_y = data.frame(obs_field_y),
-    obs_lab_x   = data.frame(obs_lab_x),
-    obs_lab_y   = data.frame(obs_lab_y),
-    latent      = data.frame(latent),
-    observed    = data.frame(observed)
+  latent <- data.frame(
+    nonref_protocol2 = latent_x[, 2], 
+    ref_protocol1    = latent_y[, 1]
   )
-  return(list_stan)
+  observed <- data.frame(
+    nonref_protocol2 = obs_lab_x[, 2], 
+    ref_protocol1    = obs_lab_y[, 1]
+  )
+  
+  #### (4) same for a validation dataset ####
+  N_val        <- 1e3
+  latent_x_val <- MASS::mvrnorm(N_val, rep(mu_x, 2), var_latent) |> 
+    as.data.frame()
+  latent_y_val    <- beta0 + beta1 * latent_x_val
+  err_field_val   <- MASS::mvrnorm(N_val, rep(0, 2), varme_field)
+  obs_field_x_val <- latent_x_val + err_field_val
+  obs_field_y_val <- latent_y_val + err_field_val
+  err_lab_val     <- MASS::mvrnorm(N_val, rep(0, 2), varme_lab)
+  obs_lab_x_val   <- obs_field_x_val + err_lab_val
+  obs_lab_y_val   <- obs_field_y_val + err_lab_val
+  latent_val <- data.frame(
+    nonref_protocol2 = latent_x_val[, 2], 
+    ref_protocol1    = latent_y_val[, 1]
+  )
+  observed_val <- data.frame(
+    nonref_protocol2 = obs_lab_x_val[, 2], 
+    ref_protocol1    = obs_lab_y_val[, 1]
+  )
+  
+  out <- list(
+    latent_cal   = latent, 
+    observed_cal = observed, 
+    latent_val   = latent_val, 
+    observed_val = observed_val
+  )
+  return(out)
 }
 
