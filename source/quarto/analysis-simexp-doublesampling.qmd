@@ -1,0 +1,238 @@
+---
+title: "Simulation experiment: new interpretation of double sampling"
+format: 
+  html:
+    embed-resources: true
+toc: true
+---
+
+```{r packages, echo = F}
+library(tidyverse) |> suppressPackageStartupMessages()
+library(targets) |> suppressPackageStartupMessages()
+library(tarchetypes) |> suppressPackageStartupMessages()
+library(here) |> suppressPackageStartupMessages()
+
+# set the _target store library of the project (for interactive use)
+prj_store <- here("source/pipelines/store-simexp-doublesampling")
+tar_load(prediction, store = prj_store)
+nrep <- max(prediction$tar_batch) * max(prediction$tar_rep) 
+```
+
+<br>
+
+## Design of the experiment
+
+This experiment is analogous to the experiment with a normal data generating mechanism. 
+In that experiment, we assumed the use of **split-samples**: on a certain location a single field protocol (support area, number of sub-samples, depth) would be used to collect a single compound sample based on a mixture of sub-samples, and this compound sample would be split in half and that each half would be analysed with two different lab methods. 
+However, this interpretation of double-sampling is at odds with the interpretation in SoilHarmony.
+In this experiment we therefore simulate the data according to this revised interpretation; namely that on a certain location, two different field protocols are used to collect two different compound samples and each compound sample is analysed with a different lab method. 
+A TF derived on such paired data can only be used to map a unique pair of (field protocol, lab method) to a pair of (reference field protocol, reference lab method) as the field and lab components cannot be disentangled from such data.
+
+We make use of the following new notation and relations:
+
+- point values of the soil descriptor - values at point locations the size of the sampling equipment, eg. 1 cm² - have a variance in the population (area $A$) of $\sigma^2(p, A)$
+- the variance of the support-area average per location in the population, $\sigma^2(a, A)$, decreases with size of the support-area: as $a$ -> $A$, $\sigma^2(a, A)$ -> 0
+- the variance of the point values within a location, $\sigma^2(p, a)$, increases with size of the support-area of the location: as $a$ -> $A$, $\sigma^2(p, a)$ -> $\sigma^2(p, A)$
+- Krige's relation says the total remains constant: $\sigma^2(p, A) = \sigma^2(a, A) + \sigma^2(p, a)$
+- assuming that variance of the average per location is proportional to area: $\sigma^2(a, A) \propto a^{-\alpha}$ ($\alpha$ = scaling exponent (0 < $\alpha$ < 1 defines spatial autocorrelation), we can see that the variances of the average per location are related to each other:
+$\sigma^2(a_2, A) = \sigma^2(a_1, A) \left(\frac{a_1}{a_2}\right)^{\alpha}$
+
+The above allow us to simulate paired data as follows. 
+
+We start with simulating $N$ paired values of the latent support-area averages for each field protocol [(1) & (2)] as measured with the non-reference method $X$:
+$$
+\begin{pmatrix} X_{\mathrm{latent}}^{(1)}\\ X_{\mathrm{latent}}^{(2)} \end{pmatrix} 
+\sim \mathcal{N}
+\left(
+\begin{pmatrix} \mu_X \\ \mu_X \end{pmatrix},
+\begin{pmatrix} \sigma^2(a_1, A)\ & \rho\sigma(a_1, A)\sigma(a_2, A) \\ 
+\rho\sigma(a_1, A)\sigma(a_2, A) & \sigma^2(a_2, A) \end{pmatrix}
+\right)
+$$
+, i.e. we simulate latent values for the non-reference method under both field protocols. Later on we will just retain only one value from this and ignore the other.
+
+Next we transform the latent non-reference method to the reference method under both field protocols. Same as above, later on we will just retain only one value from this and ignore the other.
+
+$$
+\begin{aligned}
+Y_{\mathrm{latent}}^{(1)} &= \beta_0 + \beta_1X_{\mathrm{latent}}^{(1)} \\
+Y_{\mathrm{latent}}^{(2)} &= \beta_0 + \beta_1X_{\mathrm{latent}}^{(2)}
+\end{aligned}
+$$
+
+We add now simulated field measurement error. 
+The field measurement error comes from approximating support-area averages with $n$ sub-samples and follows the usual variance of the mean formula: $\frac{\sigma^2(p, a)}{n}$
+
+$$
+\begin{aligned}
+\begin{pmatrix} \epsilon^{(1)}\\ \epsilon^{(2)} \end{pmatrix} 
+&\sim \mathcal{N}
+\left(
+\begin{pmatrix} 0 \\ 0 \end{pmatrix},
+\begin{pmatrix} \frac{\sigma^2(p, a_1)}{n_1}\ & \rho_f\frac{\sigma(p, a_1)\sigma(p, a_2)}{\sqrt{n_1n_2}} \\ 
+\rho_f\frac{\sigma(p, a_1)\sigma(p, a_2)}{\sqrt{n_1n_2}} & \frac{\sigma^2(p, a_2)}{n_2} \end{pmatrix}
+\right) \\
+X_{\mathrm{obs,field}}^{(1)} &= X_{\mathrm{latent}}^{(1)} + \epsilon^{(1)}  \\
+Y_{\mathrm{obs,field}}^{(1)} &= Y_{\mathrm{latent}}^{(1)} + \epsilon^{(1)}  \\
+X_{\mathrm{obs,field}}^{(2)} &= X_{\mathrm{latent}}^{(2)} + \epsilon^{(2)}  \\
+Y_{\mathrm{obs,field}}^{(2)} &= Y_{\mathrm{latent}}^{(2)} + \epsilon^{(2)} 
+\end{aligned}
+$$
+(in all generality, we allow measurement error between both field protocols to be correlated with magnitude $\rho_f$ but we expect this value to be low; correlation could occur when point locations would overlap exactly between two field protocols)
+
+
+
+The following values of each parameter are examined. One parameter is varied at a time while the others are kept at the default value (first value indicated). This gives a total of `r length(unique(prediction$scenario_label))` scenario's: each scenario is replicated `r nrep` times.
+The values are chosen to approximate realistic values for pH.
+
+| Parameter                                        | Values                |
+|--------------------------------------------------|-----------------------|
+|$N$                                               |200, 100, 500          |
+|$\mu$                                             |7                      |
+|$\sigma^2(p,A)$                                   |2                      |
+|$\sigma^2(a_1,A)$                                 |1.9                    |
+|$a_1 / a2$                                        |1, 0.7, 0.9, 1.1, 1.3  |
+|$n_1$                                             |5, 2, 10, 20           |
+|$n_1 / n_2$                                       |1, 0.8, 1.2            |
+|$\alpa$                                           |0.1, 0.05, 0.2         |
+|$\rho_{\text{latent}}$                            |0.9, 0.99              |
+|$\rho_{\text{me, field}}$                         |0                      |
+|$\rho_{\text{me, lab}}$                           |0                      |
+|$\beta_0$                                         |0, 0.1, 0.2            |
+|$\beta_1$                                         |1, 0.7, 0.9, 1.1, 1.3  |
+|$\sigma_{\text{lab}}(X) / \sigma_{\text{field}}$  |0.05, 0.01, 0.1, 0.2   |
+|$\sigma_{\text{lab}}(Y) / \sigma_{\text{lab}}(X)$ |1                      |
+
+: Table: Parameter values for the scenario's. The default value is the first in each list.
+
+<br>
+
+## Description of the models
+
+Simple linear regression (frequentist).
+
+<br>
+
+## Evaluation of the models
+
+See report normal DGM: R², PICP, MAE, MPE, RMSE, SDPE
+
+<br>
+
+## Results
+
+
+```{r, echo=F}
+# point-estimate (prediction interval) metrics
+display_results <- function(paramname) {
+  prediction %>% 
+    filter(grepl(paramname, scenario_label)) %>%
+    pivot_longer(
+      c(PICP, MAE, MPE, RMSE, R2, SDPE), 
+      names_to = "metric", values_to = "value"
+    ) %>%
+    mutate(
+      metric = factor(metric, c("MPE","MAE","RMSE","R2","SDPE","PICP"),
+                      c("MPE","MAE","RMSE","R²","SDPE","PICP")),
+      scenario_value = stringr::str_extract(
+        scenario_label, "-?\\d+(?:\\.\\d+)?"
+      )
+    ) %>%
+    ggplot(aes(factor(scenario_value), value)) +
+    facet_wrap(~ metric, scales = "free_y") +
+    geom_boxplot() +
+    geom_jitter(height = 0, alpha = .2) +
+    labs(x = "", y = "") +
+    theme_minimal() +
+    theme(strip.text = element_text(face = "bold"),
+          legend.position = "bottom")
+}
+```
+
+```{r, echo=F}
+#| label: fig-samplesize
+#| fig-cap: "Sample size of the calibration (training) dataset"
+display_results("Nsample") +
+  labs(x = "sample size")
+```
+
+```{r, echo=F}
+#| label: fig-ratioarea
+#| fig-cap: "Ratio between the support area's of both field protocols"
+display_results("RatioArea") +
+  labs(x = "a1 / a2")
+```
+
+```{r, echo=F}
+#| label: fig-ratioarea
+#| fig-cap: "Ratio between the support area's of both field protocols"
+display_results("RatioArea") +
+  labs(x = "a1 / a2")
+```
+
+```{r, echo=F}
+#| label: fig-nsubsamples
+#| fig-cap: "Number of subsamples"
+display_results("Nsubsamples") +
+  labs(x = "n")
+```
+
+```{r, echo=F}
+#| label: fig-ratiosubsamples
+#| fig-cap: "Ratio between subsamples in both protocols"
+display_results("RatioSubsamples") +
+  labs(x = "n1 / n2")
+```
+
+```{r, echo=F}
+#| label: fig-spatautocor
+#| fig-cap: "Spatial autocorrelation (zero = absolute smoothness)"
+display_results("SpatAutocor") +
+  labs(x = "alpha")
+```
+
+```{r, echo=F}
+#| label: fig-corrlatent
+#| fig-cap: "Correlation between latent support-area averages"
+display_results("CorrLatent") +
+  labs(x = "rho(latent)")
+```
+
+```{r, echo=F}
+#| label: fig-beta0
+#| fig-cap: "Intercept of the TF between the latent support-area averages"
+display_results("Intercept") +
+  labs(x = "beta0")
+```
+
+```{r, echo=F}
+#| label: fig-beta1
+#| fig-cap: "Slope of the TF between the latent support-area averages"
+display_results("Slope") +
+  labs(x = "beta1")
+```
+
+```{r, echo=F}
+#| label: fig-ratiolabfield
+#| fig-cap: "Ratio between measurement error: lab / field"
+display_results("RatioLabField") +
+  labs(x = "sigma(lab) / sigma(field)")
+```
+
+<br>
+
+## Conclusions
+
+- the derived TF's in this way are valid only for a mapping of 1 pair of (field protocol, lab method) to another pair and cannot be used in any other way; this probably means that only national TF's can be developed as all countries have slight variations in field protocols
+- coverage is preserved
+- EIV-models would need even more parameters as before (see other experiments), making it even more un-identifiable probably
+
+
+
+
+
+
+
+
+
+
