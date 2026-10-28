@@ -25,7 +25,7 @@ nrep <- max(prediction$tar_batch) * max(prediction$tar_rep)
 This experiment is analogous to the experiment with a normal data generating mechanism. 
 In that experiment, we assumed the use of **split-samples**: on a certain location a single field protocol (support area, number of sub-samples, depth) would be used to collect a single compound sample based on a mixture of sub-samples, and this compound sample would be split in half and one half would be analysed with a non-reference lab method and the other with a reference lab method. 
 The use of split-samples means we eliminate field measurement error from the paired data and only lab measurement error needs to be taken into account.
-However, this interpretation of double-sampling is at odds with the interpretation in SoilHarmony.
+However, this interpretation of double-sampling is at odds with how validation data in WP4 will be collected.
 In this experiment we therefore simulate the data according to this revised interpretation; namely that on a certain location, two different field protocols are used to collect two different compound samples and each compound sample is analysed with a different lab method. 
 The paired data from such a double-sampling study thus need to contain both field and lab measurement error.
 A TF derived on such paired data can only be used to map a unique pair of (field protocol, lab method) to another pair of (reference field protocol, reference lab method) as the field and lab components cannot be disentangled from such paired data.
