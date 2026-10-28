@@ -64,7 +64,7 @@ Y_{\mathrm{latent}}^{(2)} &= \beta_0 + \beta_1X_{\mathrm{latent}}^{(2)}
 \end{aligned}
 $$
 
-We add now simulated field measurement error. 
+We can now add simulated field measurement error. 
 The field measurement error comes from approximating support-area averages with $n$ sub-samples and follows the usual variance of the mean formula: $\frac{\sigma^2(p, a)}{n}$
 
 $$
