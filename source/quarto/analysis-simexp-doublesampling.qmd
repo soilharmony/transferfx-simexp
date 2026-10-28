@@ -420,8 +420,8 @@ display_results("RatioLabField") +
 
 ## Conclusions
 
-- the derived TF's in this way are valid only for a mapping of 1 pair of (field protocol, lab method) to another pair and cannot be used in any other way; this probably means that only national TF's can be developed as all countries have slight variations in field protocols
-- coverage is preserved
+- the derived TF's in this way are valid only for a mapping of 1 pair of (field protocol, lab method) to another pair and cannot be used in any other way; this probably means that only national TF's can be developed as all countries have slight variations in field protocols (no European-wide TF)
+- coverage (PICP) is preserved across scenarios
 - EIV-models would need even more parameters as before (see other experiments), making it even more un-identifiable probably
 
 
