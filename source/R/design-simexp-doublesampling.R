@@ -15,7 +15,7 @@ params <- list(
   ratio_n1_n2           = c(1, .8, 1.2), 
   spatautocor           = c(.1, 0.05, 0.2),  
   corr_latent           = c(.90, .99),
-  corr_mefield          = 0,
+  corr_mefield          = c(0, 0.1, 0.3),
   beta0                 = c(0, 0.1, 0.2),  
   beta1                 = c(1, 0.7, 0.9, 1.1, 1.3), 
   ratio_labmex_fieldmex = c(.05, .01, 0.1, 0.2), 
@@ -51,6 +51,7 @@ scenarios <- scenarios %>%
       varying == "ratio_n1_n2" ~ paste0("RatioSubsamples", ratio_n1_n2),
       varying == "spatautocor" ~ paste0("SpatAutocor", spatautocor),
       varying == "corr_latent" ~ paste0("CorrLatent", corr_latent),
+      varying == "corr_mefield" ~ paste0("CorrMEfield", corr_mefield),
       varying == "beta0" ~ paste0("Intercept", beta0),
       varying == "beta1" ~ paste0("Slope", beta1),
       varying == "ratio_labmex_fieldmex" ~ paste0("RatioLabField", ratio_labmex_fieldmex)
