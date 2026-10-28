@@ -51,7 +51,7 @@ $$
 \rho\sigma(a_1, A)\sigma(a_2, A) & \sigma^2(a_2, A) \end{pmatrix}
 \right)
 $$
-, i.e. we simulate latent values for the non-reference method under both field protocols. 
+, i.e. we simulate latent values for the non-reference lab method under both field protocols. 
 Later on we will just retain only one value from this and ignore the other.
 We make the latent support-area averages to be correlated to each other ($\rho$): even though the two field protocols have a different support area, the overlap between both areas on the same location makes that the latent values should be correlated but not equal.
 
