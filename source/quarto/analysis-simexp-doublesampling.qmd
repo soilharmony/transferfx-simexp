@@ -35,7 +35,7 @@ We make use of the following new notation and relations:
 - point values of the soil descriptor - values at point locations the size of the sampling equipment, eg. 1 cm² - have a variance in the population (area $A$) of $\sigma^2(p, A)$
 - the variance of the support-area average per location in the population, $\sigma^2(a, A)$, decreases with size of the support-area: as $a$ -> $A$, $\sigma^2(a, A)$ -> 0
 - the variance of the point values within a location, $\sigma^2(p, a)$, increases with size of the support-area of the location: as $a$ -> $A$, $\sigma^2(p, a)$ -> $\sigma^2(p, A)$
-- Krige's relation says the total remains constant: $\sigma^2(p, A) = \sigma^2(a, A) + \sigma^2(p, a)$
+- Krige's relation says the total remains constant: $\sigma^2(p, A) = \sigma^2(a, A) + \sigma^2(p, a)$. This also follows from the law of total variance.
 - assuming that variance of the average per location is proportional to area: $\sigma^2(a, A) \propto a^{-\alpha}$ ($\alpha$ = scaling exponent (0 < $\alpha$ < 1 defines spatial autocorrelation), we can see that the variances of the average per location are related to each other:
 $\sigma^2(a_2, A) = \sigma^2(a_1, A) \left(\frac{a_1}{a_2}\right)^{\alpha}$
 
