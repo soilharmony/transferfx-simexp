@@ -63,6 +63,6 @@ source/stan-normal/*.exe
 source/stan-gamma/*.exe
 source/stan-ECEC/*.exe
 source/stan-simplex/*.exe
-
+source/stan-leftcens/*.exe
 
 

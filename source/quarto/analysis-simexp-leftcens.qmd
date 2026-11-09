@@ -1,0 +1,136 @@
+---
+title: "Simulation experiment (left-censored data)"
+format: 
+  html:
+    embed-resources: true
+toc: true
+execute: 
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(flextable)
+library(targets)
+library(tarchetypes)
+library(here)
+
+# set the _target store library of the project (for interactive use)
+prj_store <- here("pipelines/store-simexp-leftcens")
+# tar_load(predeval_summary, store = prj_store)
+# tar_load(predcompare_summary, store = prj_store)
+# tar_load(mcmcdx_summary, store = prj_store)
+# nrep <- length(unique(predeval_summary$.rep)) 
+```
+
+<br>
+
+## Design of the experiment
+
+The data generating mechanism is designed completely similar as in the experiment with gamma-distributed data. 
+Two additional parameters are introduced: the limits of detection (LoD) for the non-reference method ($L_x$, expressed as a quantile of the latent variable from which we simulate) and the ratio between the limits of detection of the reference and non-reference method ($L_y = r_{LoD}\times L_x$, default ratio equal to 1).
+
+If the observed data (after addition of measurement error) fall below the LoD then they are censored and we observe the tuple $\tilde{x}_{\text{obs},i} = max(x_{\text{obs},i}, L_x), \delta^x_i = I(x_{\text{obs},i} \leq L_x)$ (0 for uncensored observations, 1 for censored). We observe the same tuple for the reference method: $\tilde{y}_{\text{obs},i}, \delta^y_i$.
+
+An example dataset is shown below (on the log-scale). For the observations that fall below the LoD on either the $x$- or $y$-axis we don't get to see the actual value and we use them only for visualization purpose here.
+
+```{r}
+#| label: example 
+#| fig-cap: Example of left-censored soil descriptor (censoring in outcome and predictor).
+
+source(here("source/R/simulate-data-leftcens.R"))
+
+set.seed(1)
+data_list <- sim_data_leftcens(
+  mu_x = 1, cv_x = .5, quantile_lodx = .1
+)
+data_df   <- tibble(
+  x_obs    = data_list$x_obs,
+  y_obs    = data_list$y_obs,
+  x_obs_c  = data_list$x_obs_c,
+  y_obs_c  = data_list$y_obs_c,
+  x_obs_ci = data_list$x_obs_ci,
+  y_obs_ci = data_list$y_obs_ci
+)
+
+lod <- data_list$lodx
+
+p <- ggplot(data_df, aes(x_obs, y_obs, color = interaction(x_obs_ci, y_obs_ci))) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_hline(yintercept = lod, lty = 2) +
+  geom_vline(xintercept = lod, lty = 2) +
+  theme_bw() +
+  theme(legend.position = "inside",
+        legend.position.inside = c(.8, .3)) +
+  labs(x = "reference method", y = "non-reference method",
+       color = "left-censoring:\npredictor.outcome")
+ggExtra::ggMarginal(p)
+```
+
+
+
+```{r}
+
+mod <- cmdstanr::cmdstan_model(
+  here("source/stan-leftcens/gammareg-leftcens.stan")
+)
+
+fit <- mod$sample(
+  data = data_list,
+  chains = 4,
+  parallel_chains = 4
+)
+
+draws <- fit$draws(
+  variables = c("mu_x", "cv_x", "beta0", "beta1", "shape")
+) |> posterior::as_draws_df()
+
+pairs(draws[, 1:5])
+
+ppred_draws <- fit$draws() |> 
+  posterior::as_draws_df() |> 
+  select(contains("y_new_rep"))
+
+spc <- tibble(
+  .name  = c(
+    paste0("y_new_rep[",1:1000,"]_est"),
+    paste0("y_new_rep[",1:1000,"]_ll"),
+    paste0("y_new_rep[",1:1000,"]_ul")
+  ),
+  .value = c(rep(c("est","ll","ul"), each = 1000)),
+  id = rep(1:1000, 3)
+)
+
+prediction_summary <- ppred_draws |> 
+  summarise(
+    across(
+      everything(), 
+      list(est = mean, ll = ~quantile(.x, .025), ul = ~quantile(.x, .975))  
+    )
+  ) |> 
+  pivot_longer_spec(spc) |> 
+  cbind(yobs = data_list$y_obs_c_val)
+
+set.seed(1)
+prediction_summary |> 
+  slice_sample(n = 50) |> 
+  ggplot(aes(yobs, est, ymin=ll, ymax=ul)) +
+  geom_point() +
+  geom_errorbar() +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_abline(intercept = 0, slope = 1, lty = 2) +
+  geom_hline(yintercept = lod, lty = 2) +
+  geom_vline(xintercept = lod, lty = 2)
+
+```
+
+
+
+
+
